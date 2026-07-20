@@ -1,3 +1,15 @@
 spring:
   application:
     name: backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/elephant_fence
+    username: thamindubandara
+    password: THAM1ndu$#
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true

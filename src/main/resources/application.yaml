@@ -3,9 +3,9 @@ spring:
     name: backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/elephant_fence
-    username: thamindubandara
-    password: THAM1ndu$#
+    url: jdbc:postgresql://localhost:8080/elephant_fence
+    username: postgres
+    password: Gimshi0327*
 
   jpa:
     hibernate:

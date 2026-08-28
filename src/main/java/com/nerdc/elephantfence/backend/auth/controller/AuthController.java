@@ -23,8 +23,8 @@ public class AuthController {
     private final UserService userService;
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request, jakarta.servlet.http.HttpServletRequest servletRequest) {
+        return ResponseEntity.ok(authService.login(request, servletRequest));
     }
 
     @PostMapping("/refresh")

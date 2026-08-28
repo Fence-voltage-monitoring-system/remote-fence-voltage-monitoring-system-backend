@@ -1,5 +1,6 @@
 package com.nerdc.elephantfence.backend.common.security;
 
+import com.nerdc.elephantfence.backend.configuration.repository.UserSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,10 +25,11 @@ public class SecurityConfiguration {
 
     private final JwtTokenProvider tokenProvider;
     private final CustomUserDetailsService customUserDetailsService;
+    private final UserSessionRepository sessionRepository;
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter(tokenProvider, customUserDetailsService);
+        return new JwtAuthenticationFilter(tokenProvider, customUserDetailsService, sessionRepository);
     }
 
     @Bean
@@ -49,7 +51,7 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/health", "/actuator/**").permitAll()
                         .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
-                        .requestMatchers("/api/locations/**").permitAll()
+                        .requestMatchers("/api/locations/**", "/api/alerts/ws", "/api/notifications/ws").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)

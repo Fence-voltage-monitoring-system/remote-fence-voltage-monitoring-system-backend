@@ -11,7 +11,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
-@AllArgsConstructor
 @Getter
 public class UserPrincipal implements UserDetails {
 
@@ -21,6 +20,27 @@ public class UserPrincipal implements UserDetails {
     private final String password;
     private final boolean enabled;
     private final Collection<? extends GrantedAuthority> authorities;
+    private final String sessionId;
+
+    public UserPrincipal(UUID id, String fullName, String email, String password, boolean enabled, Collection<? extends GrantedAuthority> authorities) {
+        this.id = id;
+        this.fullName = fullName;
+        this.email = email;
+        this.password = password;
+        this.enabled = enabled;
+        this.authorities = authorities;
+        this.sessionId = null;
+    }
+
+    public UserPrincipal(UUID id, String fullName, String email, String password, boolean enabled, Collection<? extends GrantedAuthority> authorities, String sessionId) {
+        this.id = id;
+        this.fullName = fullName;
+        this.email = email;
+        this.password = password;
+        this.enabled = enabled;
+        this.authorities = authorities;
+        this.sessionId = sessionId;
+    }
 
     public static UserPrincipal create(User user) {
         List<GrantedAuthority> authorities = List.of(
@@ -35,6 +55,10 @@ public class UserPrincipal implements UserDetails {
                 user.isEnabled(),
                 authorities
         );
+    }
+
+    public UserPrincipal withSessionId(String sessionId) {
+        return new UserPrincipal(this.id, this.fullName, this.email, this.password, this.enabled, this.authorities, sessionId);
     }
 
     @Override

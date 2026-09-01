@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,21 +22,25 @@ public class GatewayController {
     private final GatewayService gatewayService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
     public ResponseEntity<List<GatewayResponseDTO>> getAllGateways() {
         return ResponseEntity.ok(gatewayService.getAllGateways());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
     public ResponseEntity<GatewayResponseDTO> getGatewayById(@PathVariable Long id) {
         return ResponseEntity.ok(gatewayService.getGatewayById(id));
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
     public ResponseEntity<GatewayResponseDTO> createGateway(@Valid @RequestBody CreateGatewayRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(gatewayService.createGateway(dto));
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
     public ResponseEntity<GatewayResponseDTO> updateGateway(
             @PathVariable Long id,
             @Valid @RequestBody UpdateGatewayRequestDTO dto
@@ -44,6 +49,7 @@ public class GatewayController {
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
     public ResponseEntity<GatewayResponseDTO> toggleEnabled(
             @PathVariable Long id,
             @RequestBody Map<String, Boolean> body
@@ -56,6 +62,7 @@ public class GatewayController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<Void> deleteGateway(@PathVariable Long id) {
         gatewayService.deleteGateway(id);
         return ResponseEntity.noContent().build();

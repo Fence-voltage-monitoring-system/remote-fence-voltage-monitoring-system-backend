@@ -6,6 +6,7 @@ import com.nerdc.elephantfence.backend.gateways.dto.UpdateGatewayRequestDTO;
 import com.nerdc.elephantfence.backend.gateways.entity.Gateway;
 import com.nerdc.elephantfence.backend.gateways.entity.GatewayStatus;
 import com.nerdc.elephantfence.backend.gateways.repository.GatewayRepository;
+import com.nerdc.elephantfence.backend.common.security.ResourceAccessValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import java.util.List;
 public class GatewayService {
 
     private final GatewayRepository gatewayRepository;
+    private final ResourceAccessValidator resourceAccessValidator;
 
     @Transactional(readOnly = true)
     public List<GatewayResponseDTO> getAllGateways() {
@@ -29,6 +31,7 @@ public class GatewayService {
     public GatewayResponseDTO getGatewayById(Long id) {
         Gateway gateway = gatewayRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Gateway not found with ID: " + id));
+        resourceAccessValidator.validateGeographicAccess(null, null);
         return convertToResponseDTO(gateway);
     }
 

@@ -30,15 +30,27 @@ public class AuthService {
     private final UserRepository userRepository;
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
+    private final LoginRateLimiterService rateLimiterService;
 
     @Transactional
     public LoginResponseDTO login(LoginRequestDTO request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail().toLowerCase().trim(),
-                        request.getPassword()
-                )
-        );
+        String clientKey = request.getEmail().toLowerCase().trim();
+        rateLimiterService.checkRateLimit(clientKey);
+
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            clientKey,
+                            request.getPassword()
+                    )
+            );
+        } catch (org.springframework.security.core.AuthenticationException ex) {
+            rateLimiterService.recordFailedAttempt(clientKey);
+            throw ex;
+        }
+
+        rateLimiterService.resetAttempts(clientKey);
 
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         String accessToken = tokenProvider.generateToken(authentication);

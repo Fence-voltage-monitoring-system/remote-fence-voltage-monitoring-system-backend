@@ -109,6 +109,25 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
+    @Transactional
+    public UserResponseDTO updateUserStatus(UUID id, boolean enabled) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
+        user.setEnabled(enabled);
+        User updated = userRepository.save(user);
+        return toUserResponseDTO(updated);
+    }
+
+    @Transactional
+    public Map<String, String> resetPassword(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
+        user.setPasswordHash(passwordEncoder.encode("Password@123456"));
+        user.setPasswordChangeRequired(true);
+        userRepository.save(user);
+        return Map.of("message", "Password reset successfully for " + user.getFullName() + ". Temporary password is: Password@123456");
+    }
+
     public UserResponseDTO toUserResponseDTO(User user) {
         List<Long> provinceIds = user.getAssignedProvinces() != null
                 ? user.getAssignedProvinces().stream().map(Province::getId).toList()

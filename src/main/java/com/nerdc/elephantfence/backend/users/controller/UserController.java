@@ -47,6 +47,27 @@ public class UserController {
         return ResponseEntity.ok(userService.updateUser(id, dto));
     }
 
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
+    public ResponseEntity<UserResponseDTO> updateUserStatus(
+            @PathVariable UUID id,
+            @RequestBody java.util.Map<String, Object> body
+    ) {
+        boolean enabled = false;
+        if (body.containsKey("enabled")) {
+            enabled = Boolean.TRUE.equals(body.get("enabled"));
+        } else if (body.containsKey("status")) {
+            enabled = "ACTIVE".equalsIgnoreCase(String.valueOf(body.get("status")));
+        }
+        return ResponseEntity.ok(userService.updateUserStatus(id, enabled));
+    }
+
+    @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
+    public ResponseEntity<java.util.Map<String, String>> resetPassword(@PathVariable UUID id) {
+        return ResponseEntity.ok(userService.resetPassword(id));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {

@@ -63,6 +63,10 @@ class NotificationServiceTest {
                 .enabled(true)
                 .build();
 
+        admin.setRole(com.nerdc.elephantfence.backend.users.entity.Role.SUPER_ADMIN);
+        var principal=com.nerdc.elephantfence.backend.common.security.UserPrincipal.create(admin);
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
+        lenient().when(userRepository.findByEmailIgnoreCase(admin.getEmail())).thenReturn(Optional.of(admin));
         notification = UserNotification.builder()
                 .id(1L)
                 .userId(admin.getId())
@@ -76,6 +80,8 @@ class NotificationServiceTest {
                 .build();
     }
 
+    @org.junit.jupiter.api.AfterEach
+    void clearSecurity(){org.springframework.security.core.context.SecurityContextHolder.clearContext();}
     @Test
     void getStats_shouldReturnCorrectStats() {
         UUID userId = admin.getId();
@@ -131,6 +137,8 @@ class NotificationServiceTest {
         notificationService.sendNotification(notification);
 
         verify(userNotificationRepository).save(notification);
-        verify(webSocketHandler).broadcast(any(String.class));
+        verify(webSocketHandler).broadcast(eq(admin.getId()),any(String.class));
     }
 }
+
+

@@ -47,12 +47,12 @@ public class ConfigurationService {
           "language": "en",
           "voltageUnit": "kV",
           "distanceUnit": "km",
-          "coordinateFormat": "DD",
+          "coordinateFormat": "DECIMAL_DEGREES",
           "expectedReportingIntervalMinutes": 15,
           "lateArrivalGraceMinutes": 5,
           "offlineTimeoutMinutes": 30,
           "staleDataMinutes": 60,
-          "defaultHistoryPeriod": "30_DAYS",
+          "defaultHistoryPeriod": "24h",
           "pageSize": 10,
           "maintenanceMode": false,
           "allowLoginDuringMaintenance": true,
@@ -63,9 +63,9 @@ public class ConfigurationService {
 
         DEFAULT_CONFIGS.put("voltage", """
         {
-          "healthyKv": 8.0,
-          "warningKv": 5.0,
-          "criticalKv": 3.0,
+          "healthyKv": 5.0,
+          "warningKv": 3.0,
+          "criticalKv": 1.5,
           "lowBatteryPercent": 20.0
         }
         """);
@@ -81,18 +81,18 @@ public class ConfigurationService {
           "criticalBatteryPercent": 10,
           "solarFailureEnabled": true,
           "voltageFluctuationEnabled": true,
-          "fluctuationCount": 3,
+          "fluctuationCount": 4,
           "fluctuationWindowMinutes": 10,
-          "abnormalReadingsRequired": 2,
-          "healthyReadingsRequired": 3,
-          "cooldownMinutes": 15,
+          "abnormalReadingsRequired": 1,
+          "healthyReadingsRequired": 2,
+          "cooldownMinutes": 30,
           "autoResolve": true,
           "inAppEnabled": true,
           "websocketEnabled": true,
-          "smsEnabled": false,
-          "escalationEnabled": false,
-          "acknowledgementTimeoutMinutes": 30,
-          "maintenanceAcceptanceTimeoutMinutes": 120,
+          "smsEnabled": true,
+          "escalationEnabled": true,
+          "acknowledgementTimeoutMinutes": 10,
+          "maintenanceAcceptanceTimeoutMinutes": 15,
           "notifySuperAdmins": true,
           "notifyRegionalAdmins": true,
           "notifyFieldAdmins": true,
@@ -104,43 +104,43 @@ public class ConfigurationService {
         {
           "inAppEnabled": true,
           "websocketEnabled": true,
-          "smsEnabled": false,
+          "smsEnabled": true,
           "criticalAlertsEnabled": true,
           "warningAlertsEnabled": true,
           "maintenanceUpdatesEnabled": true,
-          "systemUpdatesEnabled": false
+          "systemUpdatesEnabled": true
         }
         """);
 
         DEFAULT_CONFIGS.put("retention", """
         {
-          "rawTelemetryDays": 30,
-          "hourlySummaryDays": 90,
-          "dailySummaryDays": 365,
-          "alertIncidentDays": 365,
-          "notificationDays": 90,
-          "auditLogDays": 180,
+          "rawTelemetryDays": 90,
+          "hourlySummaryDays": 730,
+          "dailySummaryDays": 1825,
+          "alertIncidentDays": 2555,
+          "notificationDays": 30,
+          "auditLogDays": 2555,
           "systemLogDays": 90,
-          "generatedReportDays": 30,
+          "generatedReportDays": 365,
           "archiveBeforeDeletion": true,
           "automaticCleanupEnabled": true,
-          "cleanupSchedule": "WEEKLY",
-          "cleanupTime": "02:00"
+          "cleanupSchedule": "DAILY",
+          "cleanupTime": "07:00"
         }
         """);
 
         DEFAULT_CONFIGS.put("security", """
         {
-          "minimumPasswordLength": 8,
+          "minimumPasswordLength": 12,
           "passwordHistoryCount": 5,
           "temporaryPasswordExpiryHours": 24,
           "forceChangeAfterReset": true,
           "failedLoginAttempts": 5,
           "failedAttemptWindowMinutes": 15,
           "accountLockMinutes": 30,
-          "requireMfaForSuperAdmins": false,
+          "requireMfaForSuperAdmins": true,
           "requireMfaForOtherAdmins": false,
-          "inactiveAccountDays": 90,
+          "inactiveAccountDays": 180,
           "notifyOnAccountLockout": true,
           "notifyOnPasswordChange": true,
           "notifyOnNewDeviceLogin": true,
@@ -150,14 +150,14 @@ public class ConfigurationService {
 
         DEFAULT_CONFIGS.put("sessions", """
         {
-          "maximumSessionHours": 24,
+          "maximumSessionHours": 12,
           "idleTimeoutMinutes": 30,
           "rememberMeDays": 7,
           "logoutWarningMinutes": 5,
-          "maximumConcurrentSessions": 3,
+          "maximumConcurrentSessions": 2,
           "newLoginBehaviour": "REVOKE_OLDEST",
-          "requireReauthentication": false,
-          "reauthenticationValidityMinutes": 15,
+          "requireReauthentication": true,
+          "reauthenticationValidityMinutes": 5,
           "revokeOnPasswordChange": true,
           "revokeOnPasswordReset": true,
           "revokeOnRoleOrScopeChange": true,
@@ -170,12 +170,12 @@ public class ConfigurationService {
         {
           "defaultLatitude": 7.8731,
           "defaultLongitude": 80.7718,
-          "defaultZoom": 8,
-          "healthyColor": "#10B981",
-          "warningColor": "#F59E0B",
-          "criticalColor": "#EF4444",
-          "offlineColor": "#6B7280",
-          "unassignedColor": "#374151",
+          "defaultZoom": 7,
+          "healthyColor": "#4ADE80",
+          "warningColor": "#FBBF24",
+          "criticalColor": "#F87171",
+          "offlineColor": "#9CA3AF",
+          "unassignedColor": "#4B5563",
           "showGateways": true,
           "showMonitoringDevices": true,
           "showActiveAlerts": true,
@@ -185,7 +185,7 @@ public class ConfigurationService {
           "focusCriticalAlerts": true,
           "showStaleDataWarning": true,
           "showOfflineIndicators": true,
-          "showProvinceBoundaries": true,
+          "showProvinceBoundaries": false,
           "showDistrictBoundaries": true,
           "showFenceCoverage": true,
           "showAlertOverlay": true
@@ -291,12 +291,14 @@ public class ConfigurationService {
     }
 
     @Transactional
-    public void revokeSession(String sessionId) {
+    public void revokeSession(String sessionId, String reason) {
+        log.info("Revoking session {} with reason: {}", sessionId, reason);
         sessionRepository.revokeSession(sessionId);
     }
 
     @Transactional
-    public int revokeUserSessions(UUID userId) {
+    public int revokeUserSessions(UUID userId, String reason) {
+        log.info("Revoking all active sessions for user {} with reason: {}", userId, reason);
         return sessionRepository.revokeAllUserSessions(userId);
     }
 

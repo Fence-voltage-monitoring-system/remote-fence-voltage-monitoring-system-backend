@@ -3,6 +3,7 @@ package com.nerdc.elephantfence.backend.configuration.controller;
 import com.nerdc.elephantfence.backend.common.security.UserPrincipal;
 import com.nerdc.elephantfence.backend.configuration.dto.ConfigurationSaveRequestDTO;
 import com.nerdc.elephantfence.backend.configuration.dto.ConfigurationSaveResponseDTO;
+import com.nerdc.elephantfence.backend.configuration.dto.RevokeSessionRequestDTO;
 import com.nerdc.elephantfence.backend.configuration.dto.SessionOverviewDTO;
 import com.nerdc.elephantfence.backend.configuration.service.ConfigurationService;
 import jakarta.validation.Valid;
@@ -43,14 +44,20 @@ public class ConfigurationController {
     }
 
     @PostMapping("/sessions/active/{sessionId}/revoke")
-    public ResponseEntity<Map<String, String>> revokeSession(@PathVariable String sessionId) {
-        configurationService.revokeSession(sessionId);
+    public ResponseEntity<Map<String, String>> revokeSession(
+            @PathVariable String sessionId,
+            @Valid @RequestBody RevokeSessionRequestDTO request
+    ) {
+        configurationService.revokeSession(sessionId, request.getReason());
         return ResponseEntity.ok(Map.of("message", "Session revoked successfully"));
     }
 
     @PostMapping("/sessions/users/{userId}/revoke")
-    public ResponseEntity<Map<String, Object>> revokeUserSessions(@PathVariable UUID userId) {
-        int count = configurationService.revokeUserSessions(userId);
+    public ResponseEntity<Map<String, Object>> revokeUserSessions(
+            @PathVariable UUID userId,
+            @Valid @RequestBody RevokeSessionRequestDTO request
+    ) {
+        int count = configurationService.revokeUserSessions(userId, request.getReason());
         return ResponseEntity.ok(Map.of(
                 "message", "Sessions revoked successfully",
                 "revokedSessions", count

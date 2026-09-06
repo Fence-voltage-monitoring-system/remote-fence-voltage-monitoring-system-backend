@@ -91,7 +91,7 @@ class ConfigurationServiceTest {
 
         assertThat(response.getSection()).isEqualTo("voltage");
         assertThat(response.getVersion()).isEqualTo(1);
-        assertThat(response.getValue().get("healthyKv").asDouble()).isEqualTo(8.0);
+        assertThat(response.getValue().get("healthyKv").asDouble()).isEqualTo(5.0);
         verify(configRepository).save(any(SystemConfiguration.class));
     }
 
@@ -187,7 +187,7 @@ class ConfigurationServiceTest {
 
     @Test
     void revokeSession_shouldCallRepository() {
-        configurationService.revokeSession("sess-123");
+        configurationService.revokeSession("sess-123", "Test reason");
         verify(sessionRepository).revokeSession("sess-123");
     }
 
@@ -196,7 +196,7 @@ class ConfigurationServiceTest {
         UUID userId = UUID.randomUUID();
         when(sessionRepository.revokeAllUserSessions(userId)).thenReturn(3);
 
-        int count = configurationService.revokeUserSessions(userId);
+        int count = configurationService.revokeUserSessions(userId, "Test reason");
 
         assertThat(count).isEqualTo(3);
         verify(sessionRepository).revokeAllUserSessions(userId);

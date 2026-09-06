@@ -17,6 +17,19 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class Alert {
+    @Column(name = "attempted_assignees", columnDefinition = "TEXT")
+    private String attemptedAssignees;
+    @Version
+    @Column(nullable=false)
+    @Builder.Default
+    private Long version = 0L;
+
+    @Column(name="healthy_readings_received", nullable=false)
+    @Builder.Default
+    private Integer healthyReadingsReceived = 0;
+
+    @Column(name="last_observation_at")
+    private OffsetDateTime lastObservationAt;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

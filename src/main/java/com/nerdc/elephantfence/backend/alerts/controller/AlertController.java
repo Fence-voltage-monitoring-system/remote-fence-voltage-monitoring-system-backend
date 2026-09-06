@@ -17,6 +17,18 @@ public class AlertController {
 
     private final AlertService alertService;
 
+    @PostMapping
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
+    public ResponseEntity<AlertResponseDTO> create(@Valid @RequestBody CreateAlertRequestDTO dto) {
+        return ResponseEntity.status(201).body(alertService.create(dto));
+    }
+
+    @GetMapping("/options")
+    public java.util.Map<String,Object> options() { return alertService.options(); }
+
+    @GetMapping("/{key}")
+    public AlertResponseDTO getAlert(@PathVariable String key) { return alertService.getAlert(key); }
+
     @GetMapping
     public ResponseEntity<AlertPageDTO> getAlerts(
             @ModelAttribute AlertFilters filters,

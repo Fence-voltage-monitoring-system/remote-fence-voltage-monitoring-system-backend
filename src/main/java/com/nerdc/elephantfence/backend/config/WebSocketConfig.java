@@ -15,12 +15,15 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     private final AlertWebSocketHandler alertWebSocketHandler;
     private final NotificationWebSocketHandler notificationWebSocketHandler;
+    private final LiveHandshakeInterceptor handshake;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(alertWebSocketHandler, "/api/alerts/ws")
-                .setAllowedOrigins("*");
+                .addInterceptors(handshake).setAllowedOrigins("http://localhost:4200", "http://127.0.0.1:4200");
         registry.addHandler(notificationWebSocketHandler, "/api/notifications/ws")
-                .setAllowedOrigins("*");
+                .addInterceptors(handshake).setAllowedOrigins("http://localhost:4200", "http://127.0.0.1:4200");
     }
 }
+
+

@@ -82,6 +82,7 @@ public class NotificationService {
     public NotificationResponseDTO markRead(Long id) {
         UserNotification notif = userNotificationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Notification not found with ID: " + id));
+        if(!getCurrentUserId().equals(notif.getUserId()))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,"This notification belongs to another user.");
         notif.setRead(true);
         userNotificationRepository.save(notif);
         return toResponse(notif);
@@ -108,13 +109,17 @@ public class NotificationService {
     @Transactional
     public void sendNotification(UserNotification notification) {
         userNotificationRepository.save(notification);
-        broadcastNotification(notification);
+        if(org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization(){
+                @Override public void afterCommit(){broadcastNotification(notification);}
+            });
+        } else broadcastNotification(notification);
     }
 
     private void broadcastNotification(UserNotification notif) {
         try {
             String json = objectMapper.writeValueAsString(toResponse(notif));
-            webSocketHandler.broadcast(json);
+            webSocketHandler.broadcast(notif.getUserId(),json);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             log.error("Failed to broadcast notification websocket update", e);
         }
@@ -122,22 +127,7 @@ public class NotificationService {
 
     private UUID getCurrentUserId() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() instanceof String) {
-            return userRepository.findByEmailIgnoreCase("admin@nerdc.lk")
-                    .map(User::getId)
-                    .orElseGet(() -> {
-                        User user = User.builder()
-                                .fullName("System Administrator")
-                                .email("admin@nerdc.lk")
-                                .passwordHash(passwordEncoder.encode("Admin@123"))
-                                .role(com.nerdc.elephantfence.backend.users.entity.Role.SUPER_ADMIN)
-                                .enabled(true)
-                                .staffId("ADM-001")
-                                .build();
-                        return userRepository.save(user).getId();
-                    });
-        }
-
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof com.nerdc.elephantfence.backend.common.security.UserPrincipal)) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Please sign in.");
         String email;
         if (auth.getPrincipal() instanceof UserDetails ud) {
             email = ud.getUsername();

@@ -12,7 +12,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ReassignAlertRequestDTO {
     @NotNull(message = "Staff ID is required")
-    private Long staffId;
+    private java.util.UUID staffId;
 
+    @jakarta.validation.constraints.NotBlank
+    @jakarta.validation.constraints.Size(max=2000)
     private String reason;
 }

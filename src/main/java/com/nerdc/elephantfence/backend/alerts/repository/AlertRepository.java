@@ -12,7 +12,10 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 @Repository
-public interface AlertRepository extends JpaRepository<Alert, Long> {
+public interface AlertRepository extends JpaRepository<Alert, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<Alert> {
+    java.util.Optional<Alert> findByCode(String code);
+    List<Alert> findByAssignmentStatusAndAcceptanceDeadlineBefore(String status, OffsetDateTime now);
+    List<Alert> findBySectionIdAndStatusNot(Long sectionId, String status);
 
     @Query("SELECT a FROM Alert a WHERE " +
            "(:severity IS NULL OR :severity = '' OR a.severity = :severity) AND " +

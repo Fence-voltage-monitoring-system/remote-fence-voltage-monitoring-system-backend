@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MaintenanceStaffOptionDTO {
-    private Object id; // Long mock ID or UUID string
+    private java.util.UUID id;
     private String name;
     private String email;
     private String responsibility; // 'PRIMARY', 'BACKUP', 'DISTRICT'

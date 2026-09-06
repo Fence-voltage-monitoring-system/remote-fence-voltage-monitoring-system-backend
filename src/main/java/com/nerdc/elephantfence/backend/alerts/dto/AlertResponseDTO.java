@@ -26,7 +26,11 @@ public class AlertResponseDTO {
     private String detected;
     private String status; // 'UNACKNOWLEDGED', 'ACKNOWLEDGED', 'ASSIGNED', 'IN_PROGRESS', 'UNDER_MAINTENANCE', 'RESOLVED'
     private String assignee;
-    private Object assigneeId; // Long mock ID or UUID string
+    private java.util.UUID assigneeId;
+    private java.util.List<String> allowedActions;
+    private String resolutionSummary;
+    private String resolutionCause;
+    private String resolutionActions;
     private String assignmentStatus; // 'UNASSIGNED', 'AWAITING_ACCEPTANCE', 'ACCEPTED', 'DECLINED', 'ESCALATED', 'REASSIGNED', 'COMPLETED'
     private String assignmentSource; // 'AUTO_PRIMARY', 'ADMIN_ASSIGNMENT', 'BACKUP_CLAIM', 'NONE'
     private String assignedAt;

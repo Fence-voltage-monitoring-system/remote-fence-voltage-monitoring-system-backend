@@ -7,9 +7,14 @@ import com.nerdc.elephantfence.backend.locations.repository.ProvinceRepository;
 import com.nerdc.elephantfence.backend.users.dto.UserCreateRequestDTO;
 import com.nerdc.elephantfence.backend.users.dto.UserResponseDTO;
 import com.nerdc.elephantfence.backend.users.dto.UserUpdateRequestDTO;
+import com.nerdc.elephantfence.backend.users.entity.Role;
 import com.nerdc.elephantfence.backend.users.entity.User;
 import com.nerdc.elephantfence.backend.users.repository.UserRepository;
+import com.nerdc.elephantfence.backend.common.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +46,8 @@ public class UserService {
 
     @Transactional
     public UserResponseDTO createUser(UserCreateRequestDTO dto) {
+        validateUserCreationAccess(dto);
+
         if (userRepository.existsByEmailIgnoreCase(dto.getEmail())) {
             throw new IllegalArgumentException("User already exists with email: " + dto.getEmail());
         }
@@ -77,7 +84,16 @@ public class UserService {
         User user = userRepository.findByIdWithProvincesAndDistricts(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
 
+        validateTargetUserManagementAccess(user);
+
         if (dto.getFullName() != null) user.setFullName(dto.getFullName());
+        if (dto.getEmail() != null && !dto.getEmail().trim().equalsIgnoreCase(user.getEmail())) {
+            String newEmail = dto.getEmail().trim().toLowerCase();
+            if (userRepository.existsByEmailIgnoreCase(newEmail)) {
+                throw new IllegalArgumentException("Email address " + newEmail + " is already registered to another account.");
+            }
+            user.setEmail(newEmail);
+        }
         if (dto.getRole() != null) user.setRole(dto.getRole());
         if (dto.getEnabled() != null) user.setEnabled(dto.getEnabled());
         if (dto.getStaffId() != null) user.setStaffId(dto.getStaffId());
@@ -103,16 +119,17 @@ public class UserService {
 
     @Transactional
     public void deleteUser(UUID id) {
-        if (!userRepository.existsById(id)) {
-            throw new IllegalArgumentException("User not found with id: " + id);
-        }
+        User user = userRepository.findByIdWithProvincesAndDistricts(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
+        validateTargetUserManagementAccess(user);
         userRepository.deleteById(id);
     }
 
     @Transactional
     public UserResponseDTO updateUserStatus(UUID id, boolean enabled) {
-        User user = userRepository.findById(id)
+        User user = userRepository.findByIdWithProvincesAndDistricts(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
+        validateTargetUserManagementAccess(user);
         user.setEnabled(enabled);
         User updated = userRepository.save(user);
         return toUserResponseDTO(updated);
@@ -120,12 +137,115 @@ public class UserService {
 
     @Transactional
     public Map<String, String> resetPassword(UUID id) {
-        User user = userRepository.findById(id)
+        User user = userRepository.findByIdWithProvincesAndDistricts(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
+        validateTargetUserManagementAccess(user);
         user.setPasswordHash(passwordEncoder.encode("Password@123456"));
         user.setPasswordChangeRequired(true);
         userRepository.save(user);
         return Map.of("message", "Password reset successfully for " + user.getFullName() + ". Temporary password is: Password@123456");
+    }
+
+    private void validateTargetUserManagementAccess(User targetUser) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            return;
+        }
+
+        User actor = userRepository.findByIdWithProvincesAndDistricts(principal.getId())
+                .orElseThrow(() -> new AccessDeniedException("Authenticated user not found"));
+
+        if (actor.getRole() == Role.SUPER_ADMIN) {
+            return;
+        }
+
+        if (actor.getRole() == Role.REGIONAL_ADMIN) {
+            if (targetUser.getRole() == Role.SUPER_ADMIN) {
+                throw new AccessDeniedException("Regional admins cannot manage Super Admin accounts.");
+            }
+
+            Set<Province> actorProvinces = actor.getAssignedProvinces();
+            Set<Province> targetProvinces = targetUser.getAssignedProvinces();
+
+            if (actorProvinces != null && !actorProvinces.isEmpty() && targetProvinces != null && !targetProvinces.isEmpty()) {
+                boolean hasOverlap = actorProvinces.stream().anyMatch(targetProvinces::contains);
+                if (!hasOverlap) {
+                    throw new AccessDeniedException("Access denied: Target user belongs to a region outside your authority.");
+                }
+            }
+            return;
+        }
+
+        if (actor.getRole() == Role.FIELD_ADMIN) {
+            if (targetUser.getRole() != Role.MAINTENANCE) {
+                throw new AccessDeniedException("Field Admins can only manage Maintenance staff accounts.");
+            }
+
+            Set<District> actorDistricts = actor.getAssignedDistricts();
+            Set<District> targetDistricts = targetUser.getAssignedDistricts();
+
+            if (actorDistricts != null && !actorDistricts.isEmpty() && targetDistricts != null && !targetDistricts.isEmpty()) {
+                boolean hasOverlap = actorDistricts.stream().anyMatch(targetDistricts::contains);
+                if (!hasOverlap) {
+                    throw new AccessDeniedException("Access denied: Target user belongs to a district outside your authority.");
+                }
+            }
+            return;
+        }
+
+        throw new AccessDeniedException("Access denied: You do not have permission to manage users.");
+    }
+
+    private void validateUserCreationAccess(UserCreateRequestDTO dto) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            return;
+        }
+
+        User actor = userRepository.findByIdWithProvincesAndDistricts(principal.getId())
+                .orElseThrow(() -> new AccessDeniedException("Authenticated user not found"));
+
+        if (actor.getRole() == Role.SUPER_ADMIN) {
+            return;
+        }
+
+        if (actor.getRole() == Role.REGIONAL_ADMIN) {
+            if (dto.getRole() == Role.SUPER_ADMIN || dto.getRole() == Role.REGIONAL_ADMIN) {
+                throw new AccessDeniedException("Access denied: Regional admins can only create users below their level (Field Admin or Maintenance).");
+            }
+
+            Set<Province> actorProvinces = actor.getAssignedProvinces();
+            if (actorProvinces != null && !actorProvinces.isEmpty()) {
+                List<Long> actorProvinceIds = actorProvinces.stream().map(Province::getId).toList();
+                if (dto.getProvinceIds() != null && !dto.getProvinceIds().isEmpty()) {
+                    boolean allMatch = dto.getProvinceIds().stream().allMatch(actorProvinceIds::contains);
+                    if (!allMatch) {
+                        throw new AccessDeniedException("Access denied: Cannot assign users to a region outside your authority.");
+                    }
+                }
+            }
+            return;
+        }
+
+        if (actor.getRole() == Role.FIELD_ADMIN) {
+            if (dto.getRole() != Role.MAINTENANCE) {
+                throw new AccessDeniedException("Access denied: Field Admins can only create Maintenance staff accounts.");
+            }
+
+            Set<District> actorDistricts = actor.getAssignedDistricts();
+            if (actorDistricts != null && !actorDistricts.isEmpty()) {
+                List<Long> actorDistrictIds = actorDistricts.stream().map(District::getId).toList();
+                if (dto.getDistrictIds() != null && !dto.getDistrictIds().isEmpty()) {
+                    boolean allMatch = dto.getDistrictIds().stream().allMatch(actorDistrictIds::contains);
+                    if (!allMatch) {
+                        throw new AccessDeniedException("Access denied: Cannot assign users to a district outside your authority.");
+                    }
+                }
+            }
+            return;
+        }
+
+        throw new AccessDeniedException("Access denied: You do not have permission to create users.");
     }
 
     public UserResponseDTO toUserResponseDTO(User user) {
@@ -133,8 +253,16 @@ public class UserService {
                 ? user.getAssignedProvinces().stream().map(Province::getId).toList()
                 : Collections.emptyList();
 
+        List<String> provinceNames = user.getAssignedProvinces() != null
+                ? user.getAssignedProvinces().stream().map(Province::getName).toList()
+                : Collections.emptyList();
+
         List<Long> districtIds = user.getAssignedDistricts() != null
                 ? user.getAssignedDistricts().stream().map(District::getId).toList()
+                : Collections.emptyList();
+
+        List<String> districtNames = user.getAssignedDistricts() != null
+                ? user.getAssignedDistricts().stream().map(District::getName).toList()
                 : Collections.emptyList();
 
         return UserResponseDTO.builder()
@@ -151,7 +279,9 @@ public class UserService {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .provinceIds(provinceIds)
+                .provinceNames(provinceNames)
                 .districtIds(districtIds)
+                .districtNames(districtNames)
                 .build();
     }
 }

@@ -10,6 +10,7 @@ import com.nerdc.elephantfence.backend.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,13 +26,16 @@ public class DataInitializer implements CommandLineRunner {
     private final ProvinceRepository provinceRepository;
     private final DistrictRepository districtRepository;
     private final UserRepository userRepository;
+    private final com.nerdc.elephantfence.backend.devices.repository.DeviceRepository deviceRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional
     public void run(String... args) throws Exception {
         seedProvincesAndDistricts();
         seedSuperAdmin();
+        seedFencesSectionsAndDevices();
     }
 
     private void seedProvincesAndDistricts() {
@@ -64,24 +68,114 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void seedSuperAdmin() {
-        if (userRepository.count() > 0) {
+        if (!userRepository.existsByEmailIgnoreCase("admin@nerdc.lk")) {
+            log.info("Seeding default Super Admin user (admin@nerdc.lk)...");
+            User admin = User.builder()
+                    .fullName("System Administrator")
+                    .email("admin@nerdc.lk")
+                    .passwordHash(passwordEncoder.encode("Admin@123456"))
+                    .role(Role.SUPER_ADMIN)
+                    .enabled(true)
+                    .passwordChangeRequired(false)
+                    .staffId("ADM-001")
+                    .contactNumber("+94112223344")
+                    .build();
+            userRepository.save(admin);
+        }
+
+        if (!userRepository.existsByEmailIgnoreCase("kasun.perera@dwc.gov.lk")) {
+            log.info("Seeding default Kasun Perera (Kasun perera)...");
+            Province sabaragamuwa = provinceRepository.findAll().stream()
+                    .filter(p -> p.getName().equalsIgnoreCase("Sabaragamuwa"))
+                    .findFirst().orElse(null);
+
+            User kasun = User.builder()
+                    .fullName("Kasun perera")
+                    .email("kasun.perera@dwc.gov.lk")
+                    .passwordHash(passwordEncoder.encode("Password@123456"))
+                    .role(Role.REGIONAL_ADMIN)
+                    .enabled(true)
+                    .passwordChangeRequired(false)
+                    .staffId("REG-001")
+                    .contactNumber("+94712345678")
+                    .assignedProvinces(sabaragamuwa != null ? new java.util.HashSet<>(java.util.List.of(sabaragamuwa)) : new java.util.HashSet<>())
+                    .build();
+            userRepository.save(kasun);
+        }
+
+        if (!userRepository.existsByEmailIgnoreCase("june.kartha@dwc.gov.lk")) {
+            log.info("Seeding default June Kartha (june kartha)...");
+            Province western = provinceRepository.findAll().stream()
+                    .filter(p -> p.getName().equalsIgnoreCase("Western"))
+                    .findFirst().orElse(null);
+
+            User june = User.builder()
+                    .fullName("june kartha")
+                    .email("june.kartha@dwc.gov.lk")
+                    .passwordHash(passwordEncoder.encode("Password@123456"))
+                    .role(Role.REGIONAL_ADMIN)
+                    .enabled(true)
+                    .passwordChangeRequired(false)
+                    .staffId("REG-002")
+                    .contactNumber("+94771234567")
+                    .assignedProvinces(western != null ? new java.util.HashSet<>(java.util.List.of(western)) : new java.util.HashSet<>())
+                    .build();
+            userRepository.save(june);
+        }
+    }
+
+    private void seedFencesSectionsAndDevices() {
+        Integer fenceCount = jdbcTemplate.queryForObject("SELECT count(*) FROM fences", Integer.class);
+        if (fenceCount != null && fenceCount > 0) {
             return;
         }
 
-        log.info("Seeding default Super Admin user (admin@nerdc.lk)...");
+        log.info("Seeding initial Fences and Sections via SQL...");
 
-        User admin = User.builder()
-                .fullName("System Administrator")
-                .email("admin@nerdc.lk")
-                .passwordHash(passwordEncoder.encode("Admin@123456"))
-                .role(Role.SUPER_ADMIN)
-                .enabled(true)
-                .passwordChangeRequired(false)
-                .staffId("ADM-001")
-                .contactNumber("+94112223344")
-                .build();
+        Long monId = jdbcTemplate.queryForObject("SELECT id FROM districts WHERE LOWER(name) = 'monaragala' LIMIT 1", Long.class);
+        Long monProvId = jdbcTemplate.queryForObject("SELECT province_id FROM districts WHERE LOWER(name) = 'monaragala' LIMIT 1", Long.class);
 
-        userRepository.save(admin);
-        log.info("Default Super Admin created successfully.");
+        Long putId = jdbcTemplate.queryForObject("SELECT id FROM districts WHERE LOWER(name) = 'puttalam' LIMIT 1", Long.class);
+        Long putProvId = jdbcTemplate.queryForObject("SELECT province_id FROM districts WHERE LOWER(name) = 'puttalam' LIMIT 1", Long.class);
+
+        Long anuId = jdbcTemplate.queryForObject("SELECT id FROM districts WHERE LOWER(name) = 'anuradhapura' LIMIT 1", Long.class);
+        Long anuProvId = jdbcTemplate.queryForObject("SELECT province_id FROM districts WHERE LOWER(name) = 'anuradhapura' LIMIT 1", Long.class);
+
+        Long ampId = jdbcTemplate.queryForObject("SELECT id FROM districts WHERE LOWER(name) = 'ampara' LIMIT 1", Long.class);
+        Long ampProvId = jdbcTemplate.queryForObject("SELECT province_id FROM districts WHERE LOWER(name) = 'ampara' LIMIT 1", Long.class);
+
+        if (monId != null && putId != null && anuId != null && ampId != null) {
+            jdbcTemplate.execute("DELETE FROM sections");
+            jdbcTemplate.execute("DELETE FROM fences");
+
+            jdbcTemplate.update("INSERT INTO fences (code, name, province_id, district_id, length_km, average_voltage_kv, health) VALUES ('EPF-MON-01', 'Monaragala Elephant Protection Fence', ?, ?, 14.5, 6.2, 'HEALTHY')", monProvId, monId);
+            jdbcTemplate.update("INSERT INTO fences (code, name, province_id, district_id, length_km, average_voltage_kv, health) VALUES ('EPF-WIL-01', 'Wilpattu North Buffer Fence', ?, ?, 11.2, 5.8, 'HEALTHY')", putProvId, putId);
+            jdbcTemplate.update("INSERT INTO fences (code, name, province_id, district_id, length_km, average_voltage_kv, health) VALUES ('EPF-MIH-01', 'Mihintale Wildlife Buffer Fence', ?, ?, 9.8, 3.2, 'WARNING')", anuProvId, anuId);
+            jdbcTemplate.update("INSERT INTO fences (code, name, province_id, district_id, length_km, average_voltage_kv, health) VALUES ('EPF-GAL-01', 'Gal Oya East Protection Fence', ?, ?, 13.4, 3.8, 'WARNING')", ampProvId, ampId);
+
+            Long f1 = jdbcTemplate.queryForObject("SELECT id FROM fences WHERE code = 'EPF-MON-01'", Long.class);
+            Long f2 = jdbcTemplate.queryForObject("SELECT id FROM fences WHERE code = 'EPF-WIL-01'", Long.class);
+            Long f3 = jdbcTemplate.queryForObject("SELECT id FROM fences WHERE code = 'EPF-MIH-01'", Long.class);
+            Long f4 = jdbcTemplate.queryForObject("SELECT id FROM fences WHERE code = 'EPF-GAL-01'", Long.class);
+
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-001', 3.5, 'HEALTHY')", f1);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-002', 3.8, 'WARNING')", f1);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-003', 3.6, 'HEALTHY')", f1);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-004', 3.6, 'HEALTHY')", f1);
+
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-001', 3.8, 'HEALTHY')", f2);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-002', 3.7, 'HEALTHY')", f2);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-003', 3.7, 'HEALTHY')", f2);
+
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-001', 3.2, 'HEALTHY')", f3);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-002', 3.3, 'OFFLINE')", f3);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-003', 3.3, 'OFFLINE')", f3);
+
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-001', 3.4, 'WARNING')", f4);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-002', 3.3, 'HEALTHY')", f4);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-003', 3.3, 'HEALTHY')", f4);
+            jdbcTemplate.update("INSERT INTO sections (fence_id, code, length_km, status) VALUES (?, 'SEC-004', 3.4, 'HEALTHY')", f4);
+        }
+        log.info("Finished seeding initial Fences and Sections.");
     }
 }

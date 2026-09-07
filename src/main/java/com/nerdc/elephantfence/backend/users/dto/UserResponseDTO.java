@@ -28,5 +28,7 @@ public class UserResponseDTO {
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private List<Long> provinceIds;
+    private List<String> provinceNames;
     private List<Long> districtIds;
+    private List<String> districtNames;
 }

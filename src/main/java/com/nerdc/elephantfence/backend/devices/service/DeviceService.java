@@ -76,6 +76,7 @@ public class DeviceService {
                 .orElseThrow(() -> new IllegalArgumentException("Device not found with ID: " + id));
 
         if (dto.getName() != null) device.setName(dto.getName());
+        if (dto.getSerial() != null && !dto.getSerial().isBlank()) device.setSerial(dto.getSerial().trim());
         if (dto.getType() != null) device.setType(dto.getType());
         if (dto.getEnabled() != null) device.setEnabled(dto.getEnabled());
 

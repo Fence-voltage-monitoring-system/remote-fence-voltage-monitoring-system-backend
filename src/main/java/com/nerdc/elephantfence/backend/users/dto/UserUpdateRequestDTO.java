@@ -18,6 +18,10 @@ public class UserUpdateRequestDTO {
     @Size(max = 150)
     private String fullName;
 
+    @jakarta.validation.constraints.Email
+    @Size(max = 254)
+    private String email;
+
     private Role role;
     private Boolean enabled;
     private String staffId;

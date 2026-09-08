@@ -1,5 +1,6 @@
 package com.nerdc.elephantfence.backend.gateways.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.*;
@@ -9,6 +10,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UpdateGatewayRequestDTO {
 
     @Size(max = 100, message = "Gateway name must not exceed 100 characters")

@@ -68,6 +68,15 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void seedSuperAdmin() {
+        userRepository.findByEmailIgnoreCase("kasun.perera@dwc.gov.lk").ifPresent(u -> {
+            log.info("Deleting legacy demo user kasun.perera@dwc.gov.lk");
+            userRepository.delete(u);
+        });
+        userRepository.findByEmailIgnoreCase("june.kartha@dwc.gov.lk").ifPresent(u -> {
+            log.info("Deleting legacy demo user june.kartha@dwc.gov.lk");
+            userRepository.delete(u);
+        });
+
         if (!userRepository.existsByEmailIgnoreCase("admin@nerdc.lk")) {
             log.info("Seeding default Super Admin user (admin@nerdc.lk)...");
             User admin = User.builder()
@@ -81,46 +90,6 @@ public class DataInitializer implements CommandLineRunner {
                     .contactNumber("+94112223344")
                     .build();
             userRepository.save(admin);
-        }
-
-        if (!userRepository.existsByEmailIgnoreCase("kasun.perera@dwc.gov.lk")) {
-            log.info("Seeding default Kasun Perera (Kasun perera)...");
-            Province sabaragamuwa = provinceRepository.findAll().stream()
-                    .filter(p -> p.getName().equalsIgnoreCase("Sabaragamuwa"))
-                    .findFirst().orElse(null);
-
-            User kasun = User.builder()
-                    .fullName("Kasun perera")
-                    .email("kasun.perera@dwc.gov.lk")
-                    .passwordHash(passwordEncoder.encode("Password@123456"))
-                    .role(Role.REGIONAL_ADMIN)
-                    .enabled(true)
-                    .passwordChangeRequired(false)
-                    .staffId("REG-001")
-                    .contactNumber("+94712345678")
-                    .assignedProvinces(sabaragamuwa != null ? new java.util.HashSet<>(java.util.List.of(sabaragamuwa)) : new java.util.HashSet<>())
-                    .build();
-            userRepository.save(kasun);
-        }
-
-        if (!userRepository.existsByEmailIgnoreCase("june.kartha@dwc.gov.lk")) {
-            log.info("Seeding default June Kartha (june kartha)...");
-            Province western = provinceRepository.findAll().stream()
-                    .filter(p -> p.getName().equalsIgnoreCase("Western"))
-                    .findFirst().orElse(null);
-
-            User june = User.builder()
-                    .fullName("june kartha")
-                    .email("june.kartha@dwc.gov.lk")
-                    .passwordHash(passwordEncoder.encode("Password@123456"))
-                    .role(Role.REGIONAL_ADMIN)
-                    .enabled(true)
-                    .passwordChangeRequired(false)
-                    .staffId("REG-002")
-                    .contactNumber("+94771234567")
-                    .assignedProvinces(western != null ? new java.util.HashSet<>(java.util.List.of(western)) : new java.util.HashSet<>())
-                    .build();
-            userRepository.save(june);
         }
     }
 

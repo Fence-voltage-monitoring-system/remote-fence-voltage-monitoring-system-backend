@@ -21,8 +21,7 @@ public class Alert {
     private String attemptedAssignees;
     @Version
     @Column(nullable=false)
-    @Builder.Default
-    private Long version = 0L;
+    private Long version;
 
     @Column(name="healthy_readings_received", nullable=false)
     @Builder.Default

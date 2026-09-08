@@ -119,7 +119,7 @@ public class AlertService {
             Section section=sectionRepository.findById(dto.getSectionId()).orElseThrow(()->new IllegalArgumentException("Section not found."));
             if(!f.getId().equals(section.getFenceId()))throw new IllegalArgumentException("Section must belong to the selected fence.");
         }
-        alertRepository.saveAndFlush(a);
+        a = alertRepository.saveAndFlush(a);
         createEvent(a.getId(),"ALERT_CREATED",actor.getFullName(),dto.getDescription().trim());
         User primary=f.getPrimaryMaintenanceUser();
         if(primary!=null&&primary.isEnabled()){assign(a,primary,"AUTO_PRIMARY");createEvent(a.getId(),"AUTO_ASSIGNED",actor.getFullName(),"Assigned to "+primary.getFullName());}
@@ -354,5 +354,4 @@ public class AlertService {
                 .build();
     }
 }
-
 

@@ -1,6 +1,6 @@
 package com.nerdc.elephantfence.backend.configuration.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Map;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 public class ConfigurationSaveRequestDTO {
 
     @NotNull(message = "Configuration value is required")
-    private JsonNode value;
+    private Map<String, Object> value;
 
     @NotBlank(message = "Reason for configuration change is required")
     private String reason;

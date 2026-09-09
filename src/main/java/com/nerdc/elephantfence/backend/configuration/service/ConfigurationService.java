@@ -219,7 +219,7 @@ public class ConfigurationService {
                 .version(1)
                 .build();
 
-        newConfig = configRepository.save(newConfig);
+        newConfig = configRepository.saveAndFlush(newConfig);
         return toResponseDTO(newConfig);
     }
 
@@ -234,12 +234,12 @@ public class ConfigurationService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        config.setConfigData(request.getValue());
+        config.setConfigData(objectMapper.valueToTree(request.getValue()));
         config.setUpdatedBy(user);
         config.setReason(request.getReason());
         config.setVersion(config.getVersion() + 1);
 
-        config = configRepository.save(config);
+        config = configRepository.saveAndFlush(config);
         return toResponseDTO(config);
     }
 
@@ -310,7 +310,7 @@ public class ConfigurationService {
 
         return ConfigurationSaveResponseDTO.builder()
                 .section(config.getSection())
-                .value(config.getConfigData())
+                .value(objectMapper.convertValue(config.getConfigData(), new com.fasterxml.jackson.core.type.TypeReference<Map<String,Object>>() {}))
                 .updatedBy(updatedByEmail)
                 .updatedAt(config.getUpdatedAt() != null ? config.getUpdatedAt() : OffsetDateTime.now())
                 .version(config.getVersion())

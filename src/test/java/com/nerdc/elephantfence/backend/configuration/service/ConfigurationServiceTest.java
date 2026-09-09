@@ -79,20 +79,20 @@ class ConfigurationServiceTest {
         assertThat(response.getSection()).isEqualTo("general");
         assertThat(response.getVersion()).isEqualTo(2);
         assertThat(response.getUpdatedBy()).isEqualTo("admin@nerdc.lk");
-        assertThat(response.getValue().get("testKey").asText()).isEqualTo("testValue");
+        assertThat(response.getValue().get("testKey")).isEqualTo("testValue");
     }
 
     @Test
     void getSection_shouldSaveAndReturnDefault_whenNotExists() {
         when(configRepository.findBySection("voltage")).thenReturn(Optional.empty());
-        when(configRepository.save(any(SystemConfiguration.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(configRepository.saveAndFlush(any(SystemConfiguration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ConfigurationSaveResponseDTO response = configurationService.getSection("voltage");
 
         assertThat(response.getSection()).isEqualTo("voltage");
         assertThat(response.getVersion()).isEqualTo(1);
-        assertThat(response.getValue().get("healthyKv").asDouble()).isEqualTo(5.0);
-        verify(configRepository).save(any(SystemConfiguration.class));
+        assertThat(response.getValue().get("healthyKv")).isEqualTo(5.0);
+        verify(configRepository).saveAndFlush(any(SystemConfiguration.class));
     }
 
     @Test
@@ -107,17 +107,17 @@ class ConfigurationServiceTest {
 
         when(configRepository.findBySection("general")).thenReturn(Optional.of(existing));
         when(userRepository.findById(adminUser.getId())).thenReturn(Optional.of(adminUser));
-        when(configRepository.save(any(SystemConfiguration.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(configRepository.saveAndFlush(any(SystemConfiguration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         JsonNode newData = objectMapper.createObjectNode().put("key", "new");
-        ConfigurationSaveRequestDTO request = new ConfigurationSaveRequestDTO(newData, "Change config");
+        ConfigurationSaveRequestDTO request = new ConfigurationSaveRequestDTO(Map.of("key","new"), "Change config");
 
         ConfigurationSaveResponseDTO response = configurationService.saveSection("general", request, adminUser.getId());
 
         assertThat(response.getSection()).isEqualTo("general");
         assertThat(response.getVersion()).isEqualTo(2);
         assertThat(response.getUpdatedBy()).isEqualTo("admin@nerdc.lk");
-        assertThat(response.getValue().get("key").asText()).isEqualTo("new");
+        assertThat(response.getValue().get("key")).isEqualTo("new");
     }
 
     @Test

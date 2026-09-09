@@ -1,6 +1,6 @@
 package com.nerdc.elephantfence.backend.configuration.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,7 +14,7 @@ import java.time.OffsetDateTime;
 @AllArgsConstructor
 public class ConfigurationSaveResponseDTO {
     private String section;
-    private JsonNode value;
+    private Map<String, Object> value;
     private String updatedBy;
     private OffsetDateTime updatedAt;
     private Integer version;

@@ -48,7 +48,11 @@ public class SecurityConfiguration {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(errors -> errors.authenticationEntryPoint(
+                        (request, response, exception) -> response.setStatus(401)))
                 .authorizeHttpRequests(authorize -> authorize
+                        // Preserve the original error status after an authenticated request fails.
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/health", "/actuator/**").permitAll()
                         .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers("/api/locations/**", "/api/alerts/ws", "/api/notifications/ws").permitAll()

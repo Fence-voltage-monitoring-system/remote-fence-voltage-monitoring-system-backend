@@ -26,7 +26,6 @@ public class DataInitializer implements CommandLineRunner {
     private final ProvinceRepository provinceRepository;
     private final DistrictRepository districtRepository;
     private final UserRepository userRepository;
-    private final com.nerdc.elephantfence.backend.devices.repository.DeviceRepository deviceRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
 

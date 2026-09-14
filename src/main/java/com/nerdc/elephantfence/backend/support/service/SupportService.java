@@ -4,7 +4,6 @@ import com.nerdc.elephantfence.backend.support.dto.FaqDTO;
 import com.nerdc.elephantfence.backend.support.dto.SupportTicketPayloadDTO;
 import com.nerdc.elephantfence.backend.support.dto.SupportTicketResponseDTO;
 import com.nerdc.elephantfence.backend.support.dto.SystemStatusInfoDTO;
-import com.nerdc.elephantfence.backend.support.entity.Faq;
 import com.nerdc.elephantfence.backend.support.entity.SupportTicket;
 import com.nerdc.elephantfence.backend.support.repository.FaqRepository;
 import com.nerdc.elephantfence.backend.support.repository.SupportTicketRepository;

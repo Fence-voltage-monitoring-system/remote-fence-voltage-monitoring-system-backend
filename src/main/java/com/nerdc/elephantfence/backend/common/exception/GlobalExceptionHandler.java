@@ -44,7 +44,7 @@ public class GlobalExceptionHandler {
         body.put("code", "VALIDATION_FAILED");
         body.put("message", "Validation failed for request parameters.");
         body.put("fieldErrors", fieldErrors);
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(body);
     }
 
     @ExceptionHandler(Exception.class)

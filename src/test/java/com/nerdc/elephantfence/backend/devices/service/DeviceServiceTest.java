@@ -3,7 +3,6 @@ package com.nerdc.elephantfence.backend.devices.service;
 import com.nerdc.elephantfence.backend.devices.dto.AssignDeviceRequestDTO;
 import com.nerdc.elephantfence.backend.devices.dto.CreateDeviceRequestDTO;
 import com.nerdc.elephantfence.backend.devices.dto.DeviceResponseDTO;
-import com.nerdc.elephantfence.backend.devices.dto.UpdateDeviceRequestDTO;
 import com.nerdc.elephantfence.backend.devices.entity.Device;
 import com.nerdc.elephantfence.backend.devices.entity.DeviceStatus;
 import com.nerdc.elephantfence.backend.devices.repository.DeviceRepository;

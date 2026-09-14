@@ -1,6 +1,5 @@
 package com.nerdc.elephantfence.backend.reports.service;
 
-import com.nerdc.elephantfence.backend.devices.repository.DeviceRepository;
 import com.nerdc.elephantfence.backend.reports.dto.HistoricalAnalysisResponseDTO;
 import com.nerdc.elephantfence.backend.reports.dto.HistoricalAnalysisResponseDTO.*;
 import com.nerdc.elephantfence.backend.reports.repository.HistoricalAnalysisRepository;
@@ -8,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -18,7 +16,6 @@ import java.util.*;
 public class HistoricalAnalysisService {
 
     private final HistoricalAnalysisRepository historicalAnalysisRepository;
-    private final DeviceRepository deviceRepository;
 
     @Transactional(readOnly = true)
     public HistoricalAnalysisResponseDTO getAnalysis(String period, String deviceIdStr) {

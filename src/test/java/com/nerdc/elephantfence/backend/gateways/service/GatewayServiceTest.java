@@ -5,7 +5,6 @@ import com.nerdc.elephantfence.backend.fences.entity.Fence;
 import com.nerdc.elephantfence.backend.fences.repository.FenceRepository;
 import com.nerdc.elephantfence.backend.gateways.dto.GatewayCreateRequestDTO;
 import com.nerdc.elephantfence.backend.gateways.dto.GatewayResponseDTO;
-import com.nerdc.elephantfence.backend.gateways.dto.GatewayUpdateRequestDTO;
 import com.nerdc.elephantfence.backend.gateways.entity.Gateway;
 import com.nerdc.elephantfence.backend.gateways.repository.GatewayRepository;
 import com.nerdc.elephantfence.backend.locations.entity.District;

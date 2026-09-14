@@ -21,7 +21,9 @@ class ReportHttpIntegrationTest {
     @Autowired com.nerdc.elephantfence.backend.fences.repository.FenceRepository fences;
     @Autowired com.nerdc.elephantfence.backend.locations.repository.DistrictRepository districts;
 
-    @Test void superAdminCanLoadRegisteredFencesOverHttp(){
+    @Test
+    @SuppressWarnings("unchecked")
+    void reportFiltersCanBeLoadedOverHttp(){
         String email=UUID.randomUUID()+"@test.invalid";
         users.saveAndFlush(User.builder().email(email).fullName("Configuration test admin")
             .passwordHash(passwords.encode("Test-only-password-123!")).passwordChangeRequired(false).role(Role.SUPER_ADMIN).build());

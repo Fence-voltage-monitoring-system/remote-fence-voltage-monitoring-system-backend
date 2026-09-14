@@ -93,7 +93,7 @@ public class ReportService {
         var datasets=new ArrayList<Dataset>();datasets.add(dataset(title,sql,p));
         if(r.options().includeAlertHistory()&&r.template()!=Template.ALERT_SUMMARY) datasets.add(dataset("Alert history",alerts,p));
         if(r.options().includeMaintenanceRecords()&&r.template()!=Template.MAINTENANCE) datasets.add(dataset("Incident workflow records",maintenance,p));
-        if(datasets.stream().mapToInt(d->d.rows().size()).sum()>5000)throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,"Select a smaller scope or date range (maximum 5000 rows).");
+        if(datasets.stream().mapToInt(d->d.rows().size()).sum()>5000)throw new ResponseStatusException(HttpStatus.CONTENT_TOO_LARGE,"Select a smaller scope or date range (maximum 5000 rows).");
         var warnings=new ArrayList<String>();
         if(Set.of(Template.FENCE_HEALTH,Template.DEVICE_STATUS,Template.GATEWAY_CONNECTIVITY).contains(r.template()))warnings.add("Status values are current snapshots, not historical uptime. Dates filter only appended history.");
         if(r.template()==Template.MAINTENANCE || r.options().includeMaintenanceRecords())warnings.add("Maintenance records show incident workflow events; planned maintenance schedules are not available.");

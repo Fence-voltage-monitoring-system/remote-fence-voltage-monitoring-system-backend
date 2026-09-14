@@ -1,7 +1,6 @@
 package com.nerdc.elephantfence.backend.common.security;
 
 import com.nerdc.elephantfence.backend.users.entity.User;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;

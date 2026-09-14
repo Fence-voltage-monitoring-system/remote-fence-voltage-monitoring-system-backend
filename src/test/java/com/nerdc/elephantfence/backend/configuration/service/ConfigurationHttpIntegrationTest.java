@@ -19,7 +19,9 @@ class ConfigurationHttpIntegrationTest {
     @Autowired UserRepository users;
     @Autowired PasswordEncoder passwords;
 
-    @Test void configurationCanBeSavedAndLoadedOverHttp(){
+    @Test
+    @SuppressWarnings("unchecked")
+    void configurationCanBeSavedAndLoadedOverHttp(){
         String email=UUID.randomUUID()+"@test.invalid";
         users.saveAndFlush(User.builder().email(email).fullName("Configuration test admin")
             .passwordHash(passwords.encode("Test-only-password-123!")).passwordChangeRequired(false).role(Role.SUPER_ADMIN).build());

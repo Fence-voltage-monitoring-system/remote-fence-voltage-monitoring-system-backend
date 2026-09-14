@@ -2,10 +2,6 @@ package com.nerdc.elephantfence.backend.notifications.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nerdc.elephantfence.backend.fences.repository.FenceRepository;
-import com.nerdc.elephantfence.backend.locations.entity.District;
-import com.nerdc.elephantfence.backend.locations.entity.Province;
-import com.nerdc.elephantfence.backend.locations.repository.DistrictRepository;
-import com.nerdc.elephantfence.backend.locations.repository.ProvinceRepository;
 import com.nerdc.elephantfence.backend.notifications.dto.NotificationPageDTO;
 import com.nerdc.elephantfence.backend.notifications.dto.NotificationResponseDTO;
 import com.nerdc.elephantfence.backend.notifications.dto.NotificationStatsDTO;
@@ -22,7 +18,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,10 +31,7 @@ public class NotificationService {
     private final UserNotificationRepository userNotificationRepository;
     private final FenceRepository fenceRepository;
     private final SectionRepository sectionRepository;
-    private final ProvinceRepository provinceRepository;
-    private final DistrictRepository districtRepository;
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
     private final NotificationWebSocketHandler webSocketHandler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 

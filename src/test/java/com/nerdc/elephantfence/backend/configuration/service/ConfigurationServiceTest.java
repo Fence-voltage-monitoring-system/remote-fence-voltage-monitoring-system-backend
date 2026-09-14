@@ -109,7 +109,6 @@ class ConfigurationServiceTest {
         when(userRepository.findById(adminUser.getId())).thenReturn(Optional.of(adminUser));
         when(configRepository.saveAndFlush(any(SystemConfiguration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        JsonNode newData = objectMapper.createObjectNode().put("key", "new");
         ConfigurationSaveRequestDTO request = new ConfigurationSaveRequestDTO(Map.of("key","new"), "Change config");
 
         ConfigurationSaveResponseDTO response = configurationService.saveSection("general", request, adminUser.getId());

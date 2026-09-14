@@ -1,6 +1,5 @@
 package com.nerdc.elephantfence.backend.notifications.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nerdc.elephantfence.backend.fences.repository.FenceRepository;
 import com.nerdc.elephantfence.backend.locations.repository.DistrictRepository;
 import com.nerdc.elephantfence.backend.locations.repository.ProvinceRepository;

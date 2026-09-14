@@ -7,6 +7,7 @@ import com.nerdc.elephantfence.backend.health.dto.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -103,6 +104,7 @@ public class SystemHealthService {
                 .build());
     }
 
+    @Transactional(readOnly = true)
     public SystemHealthSnapshotDTO getHealthSnapshot() {
         OffsetDateTime now = OffsetDateTime.now();
 

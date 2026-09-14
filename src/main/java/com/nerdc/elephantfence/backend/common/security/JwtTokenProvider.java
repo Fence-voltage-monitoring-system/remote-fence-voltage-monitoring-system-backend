@@ -31,19 +31,34 @@ public class JwtTokenProvider {
 
     public String generateToken(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        return generateTokenFromUserId(userPrincipal.getId(), jwtExpirationInMs);
+        String sessionId = userPrincipal.getSessionId() != null ? userPrincipal.getSessionId() : UUID.randomUUID().toString();
+        return generateToken(authentication, sessionId);
+    }
+
+    public String generateToken(Authentication authentication, String sessionId) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return generateTokenFromUserId(userPrincipal.getId(), jwtExpirationInMs, sessionId);
     }
 
     public String generateRefreshToken(UUID userId) {
-        return generateTokenFromUserId(userId, refreshExpirationInMs);
+        return generateRefreshToken(userId, UUID.randomUUID().toString());
+    }
+
+    public String generateRefreshToken(UUID userId, String sessionId) {
+        return generateTokenFromUserId(userId, refreshExpirationInMs, sessionId);
     }
 
     public String generateTokenFromUserId(UUID userId, long expirationMs) {
+        return generateTokenFromUserId(userId, expirationMs, UUID.randomUUID().toString());
+    }
+
+    public String generateTokenFromUserId(UUID userId, long expirationMs, String sessionId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
                 .subject(userId.toString())
+                .claim("sessionId", sessionId)
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(key)
@@ -58,6 +73,20 @@ public class JwtTokenProvider {
                 .getPayload();
 
         return UUID.fromString(claims.getSubject());
+    }
+
+    public String getSessionIdFromJWT(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            return claims.get("sessionId", String.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public boolean validateToken(String authToken) {

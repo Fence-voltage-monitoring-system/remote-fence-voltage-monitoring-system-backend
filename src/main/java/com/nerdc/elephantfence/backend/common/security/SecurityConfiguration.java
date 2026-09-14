@@ -1,5 +1,6 @@
 package com.nerdc.elephantfence.backend.common.security;
 
+import com.nerdc.elephantfence.backend.configuration.repository.UserSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 
@@ -33,13 +34,14 @@ public class SecurityConfiguration {
 
     private final JwtTokenProvider tokenProvider;
     private final CustomUserDetailsService customUserDetailsService;
+    private final UserSessionRepository sessionRepository;
 
     @Value("${app.cors.allowed-origins:http://localhost,http://localhost:80,http://localhost:4200,http://localhost:8080,http://127.0.0.1,http://127.0.0.1:80}")
     private String allowedOrigins;
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter(tokenProvider, customUserDetailsService);
+        return new JwtAuthenticationFilter(tokenProvider, customUserDetailsService, sessionRepository);
     }
 
     @Bean
@@ -85,11 +87,16 @@ public class SecurityConfiguration {
                                 "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:8080 http://localhost:4200;"
                         ))
                 )
+                .exceptionHandling(errors -> errors.authenticationEntryPoint(
+                        (request, response, exception) -> response.setStatus(401)))
                 .authorizeHttpRequests(authorize -> authorize
+                        // Preserve the original error status after an authenticated request fails.
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/health", "/actuator/**").permitAll()
                         .requestMatchers("/api/auth", "/api/auth/**").permitAll()
                         .requestMatchers("/api/locations", "/api/locations/**").permitAll()
                         .requestMatchers("/api/users", "/api/users/**").permitAll()
+                        .requestMatchers("/api/alerts/ws", "/api/notifications/ws").permitAll()
                         .requestMatchers("/api/**").permitAll()
                         .anyRequest().permitAll()
                 )

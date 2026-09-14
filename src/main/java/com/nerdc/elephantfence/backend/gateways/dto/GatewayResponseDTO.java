@@ -1,15 +1,17 @@
 package com.nerdc.elephantfence.backend.gateways.dto;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class GatewayResponseDTO {
     private String id;
     private String name;
@@ -17,10 +19,10 @@ public class GatewayResponseDTO {
     private String imei;
     private List<String> fences;
     private String status;
-    private Integer signal;
-    private Integer power;
-    private Integer devices;
-    private OffsetDateTime lastSeen;
+    private int signal;
+    private int power;
+    private int devices;
+    private String lastSeen;
     private String firmware;
     private boolean enabled;
     private OffsetDateTime createdAt;

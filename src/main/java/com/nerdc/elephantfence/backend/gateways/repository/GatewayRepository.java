@@ -14,6 +14,9 @@ public interface GatewayRepository extends JpaRepository<Gateway, Long> {
     Optional<Gateway> findBySerialIgnoreCase(String serial);
     Optional<Gateway> findByImei(String imei);
     boolean existsBySerialIgnoreCase(String serial);
+    boolean existsBySerialIgnoreCaseAndIdNot(String serial, Long id);
+    boolean existsByImeiIgnoreCase(String imei);
+    boolean existsByImeiIgnoreCaseAndIdNot(String imei, Long id);
     boolean existsByImei(String imei);
 
     @Query(value = "SELECT COUNT(*) FROM devices WHERE gateway_id = :gatewayId", nativeQuery = true)

@@ -1,14 +1,14 @@
 package com.nerdc.elephantfence.backend.gateways.controller;
 
-import com.nerdc.elephantfence.backend.gateways.dto.CreateGatewayRequestDTO;
-import com.nerdc.elephantfence.backend.gateways.dto.GatewayResponseDTO;
-import com.nerdc.elephantfence.backend.gateways.dto.UpdateGatewayRequestDTO;
+import com.nerdc.elephantfence.backend.common.security.UserPrincipal;
+import com.nerdc.elephantfence.backend.gateways.dto.*;
 import com.nerdc.elephantfence.backend.gateways.service.GatewayService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,42 +29,50 @@ public class GatewayController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
-    public ResponseEntity<GatewayResponseDTO> getGatewayById(@PathVariable Long id) {
+    public ResponseEntity<GatewayResponseDTO> getGatewayById(@PathVariable String id) {
         return ResponseEntity.ok(gatewayService.getGatewayById(id));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
-    public ResponseEntity<GatewayResponseDTO> createGateway(@Valid @RequestBody CreateGatewayRequestDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(gatewayService.createGateway(dto));
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
+    public ResponseEntity<GatewayResponseDTO> createGateway(
+            @Valid @RequestBody GatewayCreateRequestDTO dto,
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(gatewayService.createGateway(dto, principal));
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
     public ResponseEntity<GatewayResponseDTO> updateGateway(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateGatewayRequestDTO dto
+            @PathVariable String id,
+            @Valid @RequestBody GatewayUpdateRequestDTO dto,
+            @AuthenticationPrincipal UserPrincipal principal
     ) {
-        return ResponseEntity.ok(gatewayService.updateGateway(id, dto));
+        return ResponseEntity.ok(gatewayService.updateGateway(id, dto, principal));
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
     public ResponseEntity<GatewayResponseDTO> toggleEnabled(
-            @PathVariable Long id,
-            @RequestBody Map<String, Boolean> body
+            @PathVariable String id,
+            @RequestBody Map<String, Boolean> payload,
+            @AuthenticationPrincipal UserPrincipal principal
     ) {
-        Boolean enabled = body.get("enabled");
+        Boolean enabled = payload.get("enabled");
         if (enabled == null) {
             throw new IllegalArgumentException("Field 'enabled' is required");
         }
-        return ResponseEntity.ok(gatewayService.toggleEnabled(id, enabled));
+        return ResponseEntity.ok(gatewayService.toggleEnabled(id, enabled, principal));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<Void> deleteGateway(@PathVariable Long id) {
-        gatewayService.deleteGateway(id);
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
+    public ResponseEntity<Void> deleteGateway(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        gatewayService.deleteGateway(id, principal);
         return ResponseEntity.noContent().build();
     }
 }

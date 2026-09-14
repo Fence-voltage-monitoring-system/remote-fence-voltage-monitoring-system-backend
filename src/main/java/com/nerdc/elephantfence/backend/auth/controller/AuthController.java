@@ -27,8 +27,8 @@ public class AuthController {
     private final UserService userService;
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request, HttpServletResponse response) {
-        LoginResponseDTO loginResponse = authService.login(request);
+    public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request, jakarta.servlet.http.HttpServletRequest servletRequest, HttpServletResponse response) {
+        LoginResponseDTO loginResponse = authService.login(request, servletRequest);
 
         ResponseCookie accessCookie = ResponseCookie.from("access_token", loginResponse.getAccessToken())
                 .httpOnly(true)

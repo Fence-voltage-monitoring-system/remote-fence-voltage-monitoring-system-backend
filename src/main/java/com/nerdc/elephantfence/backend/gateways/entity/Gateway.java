@@ -1,11 +1,14 @@
 package com.nerdc.elephantfence.backend.gateways.entity;
 
+import com.nerdc.elephantfence.backend.fences.entity.Fence;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.OffsetDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "gateways")
@@ -29,24 +32,23 @@ public class Gateway {
     @Column(nullable = false, unique = true, length = 100)
     private String imei;
 
-    @Enumerated(EnumType.STRING)
+    @Builder.Default
     @Column(nullable = false, length = 20)
-    @Builder.Default
-    private GatewayStatus status = GatewayStatus.offline;
+    private String status = "offline";
 
-    @Column(nullable = false)
     @Builder.Default
+    @Column(nullable = false)
     private Integer signal = 0;
 
-    @Column(nullable = false)
     @Builder.Default
+    @Column(nullable = false)
     private Integer power = 0;
 
     @Column(length = 50)
     private String firmware;
 
-    @Column(nullable = false)
     @Builder.Default
+    @Column(nullable = false)
     private boolean enabled = true;
 
     @Column(name = "last_seen")
@@ -59,4 +61,13 @@ public class Gateway {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "gateway_fences",
+        joinColumns = @JoinColumn(name = "gateway_id"),
+        inverseJoinColumns = @JoinColumn(name = "fence_id")
+    )
+    @Builder.Default
+    private Set<Fence> fences = new HashSet<>();
 }

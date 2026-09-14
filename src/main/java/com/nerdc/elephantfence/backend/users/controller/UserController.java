@@ -1,5 +1,7 @@
 package com.nerdc.elephantfence.backend.users.controller;
 
+import com.nerdc.elephantfence.backend.common.security.UserPrincipal;
+import com.nerdc.elephantfence.backend.notifications.dto.UserNotificationPreferencesDTO;
 import com.nerdc.elephantfence.backend.users.dto.UserCreateRequestDTO;
 import com.nerdc.elephantfence.backend.users.dto.UserResponseDTO;
 import com.nerdc.elephantfence.backend.users.dto.UserUpdateRequestDTO;
@@ -9,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,6 +28,21 @@ public class UserController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
     public ResponseEntity<List<UserResponseDTO>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
+    }
+
+    @GetMapping("/me/notification-preferences")
+    public ResponseEntity<UserNotificationPreferencesDTO> getMyNotificationPreferences(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        UUID userId = resolveUserId(userPrincipal);
+        return ResponseEntity.ok(userService.getNotificationPreferences(userId));
+    }
+
+    @PutMapping("/me/notification-preferences")
+    public ResponseEntity<UserNotificationPreferencesDTO> updateMyNotificationPreferences(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @RequestBody UserNotificationPreferencesDTO dto
+    ) {
+        UUID userId = resolveUserId(userPrincipal);
+        return ResponseEntity.ok(userService.updateNotificationPreferences(userId, dto));
     }
 
     @GetMapping("/{id}")
@@ -73,5 +91,16 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private UUID resolveUserId(UserPrincipal userPrincipal) {
+        if (userPrincipal != null) {
+            return userPrincipal.getId();
+        }
+        return userService.getAllUsers().stream()
+                .filter(u -> "admin@nerdc.lk".equalsIgnoreCase(u.getEmail()))
+                .findFirst()
+                .map(UserResponseDTO::getId)
+                .orElseGet(() -> userService.getAllUsers().get(0).getId());
     }
 }

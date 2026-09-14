@@ -4,6 +4,9 @@ import com.nerdc.elephantfence.backend.locations.entity.District;
 import com.nerdc.elephantfence.backend.locations.entity.Province;
 import com.nerdc.elephantfence.backend.locations.repository.DistrictRepository;
 import com.nerdc.elephantfence.backend.locations.repository.ProvinceRepository;
+import com.nerdc.elephantfence.backend.notifications.dto.UserNotificationPreferencesDTO;
+import com.nerdc.elephantfence.backend.notifications.entity.UserNotificationPreferences;
+import com.nerdc.elephantfence.backend.notifications.repository.UserNotificationPreferencesRepository;
 import com.nerdc.elephantfence.backend.users.dto.UserCreateRequestDTO;
 import com.nerdc.elephantfence.backend.users.dto.UserResponseDTO;
 import com.nerdc.elephantfence.backend.users.dto.UserUpdateRequestDTO;
@@ -29,10 +32,11 @@ public class UserService {
     private final ProvinceRepository provinceRepository;
     private final DistrictRepository districtRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserNotificationPreferencesRepository notificationPreferencesRepository;
 
     @Transactional(readOnly = true)
     public List<UserResponseDTO> getAllUsers() {
-        return userRepository.findAll().stream()
+        return userRepository.findAllWithProvincesAndDistricts().stream()
                 .map(this::toUserResponseDTO)
                 .toList();
     }
@@ -282,6 +286,75 @@ public class UserService {
                 .provinceNames(provinceNames)
                 .districtIds(districtIds)
                 .districtNames(districtNames)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public UserNotificationPreferencesDTO getNotificationPreferences(UUID userId) {
+        UserNotificationPreferences prefs = notificationPreferencesRepository.findById(userId)
+                .orElseGet(() -> UserNotificationPreferences.builder()
+                        .userId(userId)
+                        .soundEnabled(true)
+                        .desktopNotificationsEnabled(false)
+                        .markAsReadOnOpen(true)
+                        .quietHoursEnabled(false)
+                        .quietHoursStart("22:00")
+                        .quietHoursEnd("06:00")
+                        .groupSimilarNotifications(true)
+                        .groupingWindowMinutes(30)
+                        .digestEnabled(false)
+                        .digestIntervalMinutes(60)
+                        .updatedAt(java.time.OffsetDateTime.now())
+                        .build());
+        return toNotificationPreferencesDTO(prefs);
+    }
+
+    @Transactional
+    public UserNotificationPreferencesDTO updateNotificationPreferences(UUID userId, UserNotificationPreferencesDTO dto) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        var existingOpt = notificationPreferencesRepository.findById(userId);
+        UserNotificationPreferences prefs;
+        if (existingOpt.isPresent()) {
+            prefs = existingOpt.get();
+            prefs.setNewEntity(false);
+        } else {
+            prefs = new UserNotificationPreferences();
+            prefs.setUserId(userId);
+            prefs.setUser(user);
+            prefs.setNewEntity(true);
+        }
+
+        prefs.setUser(user);
+        prefs.setSoundEnabled(dto.isSoundEnabled());
+        prefs.setDesktopNotificationsEnabled(dto.isDesktopNotificationsEnabled());
+        prefs.setMarkAsReadOnOpen(dto.isMarkAsReadOnOpen());
+        prefs.setQuietHoursEnabled(dto.isQuietHoursEnabled());
+        prefs.setQuietHoursStart(dto.getQuietHoursStart() != null ? dto.getQuietHoursStart() : "22:00");
+        prefs.setQuietHoursEnd(dto.getQuietHoursEnd() != null ? dto.getQuietHoursEnd() : "06:00");
+        prefs.setGroupSimilarNotifications(dto.isGroupSimilarNotifications());
+        prefs.setGroupingWindowMinutes(dto.getGroupingWindowMinutes() > 0 ? dto.getGroupingWindowMinutes() : 30);
+        prefs.setDigestEnabled(dto.isDigestEnabled());
+        prefs.setDigestIntervalMinutes(dto.getDigestIntervalMinutes() > 0 ? dto.getDigestIntervalMinutes() : 60);
+        prefs.setUpdatedAt(java.time.OffsetDateTime.now());
+
+        UserNotificationPreferences saved = notificationPreferencesRepository.save(prefs);
+        return toNotificationPreferencesDTO(saved);
+    }
+
+    private UserNotificationPreferencesDTO toNotificationPreferencesDTO(UserNotificationPreferences prefs) {
+        return UserNotificationPreferencesDTO.builder()
+                .soundEnabled(prefs.isSoundEnabled())
+                .desktopNotificationsEnabled(prefs.isDesktopNotificationsEnabled())
+                .markAsReadOnOpen(prefs.isMarkAsReadOnOpen())
+                .quietHoursEnabled(prefs.isQuietHoursEnabled())
+                .quietHoursStart(prefs.getQuietHoursStart())
+                .quietHoursEnd(prefs.getQuietHoursEnd())
+                .groupSimilarNotifications(prefs.isGroupSimilarNotifications())
+                .groupingWindowMinutes(prefs.getGroupingWindowMinutes())
+                .digestEnabled(prefs.isDigestEnabled())
+                .digestIntervalMinutes(prefs.getDigestIntervalMinutes())
                 .build();
     }
 }

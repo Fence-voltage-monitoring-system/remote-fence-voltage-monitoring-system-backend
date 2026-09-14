@@ -116,5 +116,10 @@ public class AuthController {
             return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
         }
     }
+
+    @PostMapping("/sessions/revoke-others")
+    public ResponseEntity<java.util.Map<String, Object>> revokeOtherSessions(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(authService.revokeOtherSessions(userPrincipal));
+    }
 }
 

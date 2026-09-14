@@ -188,4 +188,20 @@ public class AuthService {
         }
         return "Colombo, Sri Lanka";
     }
+
+    @Transactional
+    public java.util.Map<String, Object> revokeOtherSessions(UserPrincipal userPrincipal) {
+        UUID userId = (userPrincipal != null) ? userPrincipal.getId() : userService.getAllUsers().get(0).getId();
+        String currentSessionId = (userPrincipal != null) ? userPrincipal.getSessionId() : null;
+
+        var activeSessions = sessionRepository.findActiveByUserId(userId, OffsetDateTime.now());
+        int count = 0;
+        for (UserSession session : activeSessions) {
+            if (currentSessionId == null || !session.getId().equals(currentSessionId)) {
+                sessionRepository.delete(session);
+                count++;
+            }
+        }
+        return java.util.Map.of("message", count > 0 ? count + " other session(s) were signed out successfully." : "No other active sessions found.", "revokedSessions", count);
+    }
 }

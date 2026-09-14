@@ -19,4 +19,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.assignedProvinces LEFT JOIN FETCH u.assignedDistricts WHERE u.id = :id")
     Optional<User> findByIdWithProvincesAndDistricts(@Param("id") UUID id);
+
+    @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.assignedProvinces LEFT JOIN FETCH u.assignedDistricts")
+    List<User> findAllWithProvincesAndDistricts();
 }

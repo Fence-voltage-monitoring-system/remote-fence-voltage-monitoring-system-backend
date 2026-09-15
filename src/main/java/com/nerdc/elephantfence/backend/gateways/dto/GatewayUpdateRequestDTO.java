@@ -18,4 +18,6 @@ public class GatewayUpdateRequestDTO {
     private List<String> fences;
     private String firmware;
     private Boolean enabled;
+    private Double latitude;
+    private Double longitude;
 }

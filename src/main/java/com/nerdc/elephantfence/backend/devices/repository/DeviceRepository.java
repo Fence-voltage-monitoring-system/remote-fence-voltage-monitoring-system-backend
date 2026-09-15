@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface DeviceRepository extends JpaRepository<Device, Long> {
     Optional<Device> findBySerialIgnoreCase(String serial);
     boolean existsBySerialIgnoreCase(String serial);
+    Optional<Device> findFirstBySectionId(Long sectionId);
+    java.util.List<Device> findBySectionId(Long sectionId);
 
     @Query(value = "SELECT name FROM fences WHERE id = :fenceId", nativeQuery = true)
     String findFenceNameById(@Param("fenceId") Long fenceId);

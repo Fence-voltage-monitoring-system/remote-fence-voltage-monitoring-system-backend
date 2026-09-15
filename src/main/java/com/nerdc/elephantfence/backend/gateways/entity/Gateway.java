@@ -54,6 +54,12 @@ public class Gateway {
     @Column(name = "last_seen")
     private OffsetDateTime lastSeen;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

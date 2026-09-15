@@ -35,4 +35,8 @@ public class FenceCreateRequestDTO {
     private BigDecimal lengthKm;
     
     private String health; // Optional, defaults to OFFLINE
+
+    private String gateway;
+
+    private Long gatewayId;
 }

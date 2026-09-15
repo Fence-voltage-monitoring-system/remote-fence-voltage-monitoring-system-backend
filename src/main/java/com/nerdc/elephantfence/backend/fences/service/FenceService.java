@@ -18,6 +18,8 @@ import com.nerdc.elephantfence.backend.users.entity.Role;
 import com.nerdc.elephantfence.backend.users.entity.User;
 import com.nerdc.elephantfence.backend.users.repository.UserRepository;
 import com.nerdc.elephantfence.backend.users.service.UserService;
+import com.nerdc.elephantfence.backend.gateways.entity.Gateway;
+import com.nerdc.elephantfence.backend.gateways.repository.GatewayRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class FenceService {
     private final UserRepository userRepository;
     private final UserService userService;
     private final SectionRepository sectionRepository;
+    private final GatewayRepository gatewayRepository;
 
     @Transactional(readOnly = true)
     public List<FenceResponseDTO> getAllFences(Long provinceId, Long districtId) {
@@ -91,6 +94,7 @@ public class FenceService {
                 .build();
 
         Fence saved = fenceRepository.save(fence);
+        handleGatewayAssignment(saved.getId(), dto.getGatewayId(), dto.getGateway());
         return toFenceResponseDTO(saved);
     }
 
@@ -145,8 +149,37 @@ public class FenceService {
             }
         }
 
-        Fence updated = fenceRepository.save(fence);
-        return toFenceResponseDTO(updated);
+        Fence saved = fenceRepository.save(fence);
+        handleGatewayAssignment(saved.getId(), dto.getGatewayId(), dto.getGateway());
+        return toFenceResponseDTO(saved);
+    }
+
+    private void handleGatewayAssignment(Long fenceId, Long gatewayId, String gatewayIdent) {
+        if (gatewayId != null || (gatewayIdent != null && !gatewayIdent.trim().isEmpty())) {
+            Gateway targetGateway = null;
+            if (gatewayId != null) {
+                targetGateway = gatewayRepository.findById(gatewayId).orElse(null);
+            }
+            if (targetGateway == null && gatewayIdent != null) {
+                String clean = gatewayIdent.trim();
+                if (clean.startsWith("GTW-") || clean.startsWith("GW-")) {
+                    try {
+                        Long parsedId = Long.parseLong(clean.replace("GTW-", "").replace("GW-", ""));
+                        targetGateway = gatewayRepository.findById(parsedId).orElse(null);
+                    } catch (Exception ignored) {}
+                }
+                if (targetGateway == null) {
+                    targetGateway = gatewayRepository.findByNameIgnoreCase(clean).orElse(null);
+                }
+                if (targetGateway == null) {
+                    targetGateway = gatewayRepository.findBySerialIgnoreCase(clean).orElse(null);
+                }
+            }
+            if (targetGateway != null) {
+                gatewayRepository.unlinkFenceFromAllGateways(fenceId);
+                gatewayRepository.linkFenceToGateway(targetGateway.getId(), fenceId);
+            }
+        }
     }
 
     @Transactional(readOnly = true)
@@ -306,6 +339,7 @@ public class FenceService {
                 : null;
 
         long sectionCount = sectionRepository.countByFenceId(fence.getId());
+        Optional<Gateway> assignedGwOpt = gatewayRepository.findGatewayByFenceId(fence.getId());
 
         return FenceResponseDTO.builder()
                 .id(fence.getId())
@@ -324,6 +358,8 @@ public class FenceService {
                 .primaryMaintenanceUserName(primaryUserName)
                 .backupMaintenanceUserIds(backupUserIds)
                 .sections((int) sectionCount)
+                .gateway(assignedGwOpt.map(Gateway::getName).orElse(null))
+                .gatewayId(assignedGwOpt.map(Gateway::getId).orElse(null))
                 .createdAt(fence.getCreatedAt())
                 .updatedAt(fence.getUpdatedAt())
                 .build();

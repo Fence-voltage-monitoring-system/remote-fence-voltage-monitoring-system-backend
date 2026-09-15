@@ -61,6 +61,8 @@ public class GatewayService {
                 .serial(dto.getSerial().trim())
                 .imei(dto.getImei().trim())
                 .firmware(dto.getFirmware() != null ? dto.getFirmware().trim() : null)
+                .latitude(dto.getLatitude())
+                .longitude(dto.getLongitude())
                 .fences(resolvedFences)
                 .build();
 
@@ -100,6 +102,14 @@ public class GatewayService {
 
         if (dto.getEnabled() != null) {
             gateway.setEnabled(dto.getEnabled());
+        }
+
+        if (dto.getLatitude() != null) {
+            gateway.setLatitude(dto.getLatitude());
+        }
+
+        if (dto.getLongitude() != null) {
+            gateway.setLongitude(dto.getLongitude());
         }
 
         if (dto.getFences() != null) {
@@ -239,6 +249,8 @@ public class GatewayService {
                 .lastSeen(lastSeenStr)
                 .firmware(gateway.getFirmware())
                 .enabled(gateway.isEnabled())
+                .latitude(gateway.getLatitude())
+                .longitude(gateway.getLongitude())
                 .createdAt(gateway.getCreatedAt())
                 .updatedAt(gateway.getUpdatedAt())
                 .build();

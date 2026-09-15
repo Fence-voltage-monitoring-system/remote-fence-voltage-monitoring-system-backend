@@ -25,6 +25,8 @@ public class GatewayResponseDTO {
     private String lastSeen;
     private String firmware;
     private boolean enabled;
+    private Double latitude;
+    private Double longitude;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

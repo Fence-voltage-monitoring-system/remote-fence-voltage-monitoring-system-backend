@@ -31,6 +31,8 @@ public class FenceResponseDTO {
     private String primaryMaintenanceUserName;
     private List<UUID> backupMaintenanceUserIds;
     private Integer sections; // Mapped for frontend FenceRecord
+    private String gateway; // Mapped for frontend FenceRecord
+    private Long gatewayId;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

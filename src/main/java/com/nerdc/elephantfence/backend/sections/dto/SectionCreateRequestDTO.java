@@ -36,4 +36,5 @@ public class SectionCreateRequestDTO {
 
     private Long provinceId;
     private Long districtId;
+    private Long deviceId;
 }

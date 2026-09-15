@@ -25,5 +25,8 @@ public class SectionResponseDTO {
     private String status;
     private Long provinceId;
     private Long districtId;
+    private Long deviceId;
+    private String deviceName;
+    private String deviceSerial;
     private OffsetDateTime updatedAt;
 }

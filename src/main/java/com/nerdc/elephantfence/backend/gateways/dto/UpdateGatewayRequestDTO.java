@@ -26,4 +26,8 @@ public class UpdateGatewayRequestDTO {
     private String firmware;
 
     private Boolean enabled;
+
+    private Double latitude;
+
+    private Double longitude;
 }

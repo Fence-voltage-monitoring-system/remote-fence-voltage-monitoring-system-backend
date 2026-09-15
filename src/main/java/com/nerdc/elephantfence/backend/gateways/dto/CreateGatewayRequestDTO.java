@@ -28,4 +28,8 @@ public class CreateGatewayRequestDTO {
 
     @Size(max = 50, message = "Firmware version must not exceed 50 characters")
     private String firmware;
+
+    private Double latitude;
+
+    private Double longitude;
 }

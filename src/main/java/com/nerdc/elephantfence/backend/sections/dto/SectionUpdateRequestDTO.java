@@ -29,4 +29,5 @@ public class SectionUpdateRequestDTO {
 
     private Long provinceId;
     private Long districtId;
+    private Long deviceId;
 }

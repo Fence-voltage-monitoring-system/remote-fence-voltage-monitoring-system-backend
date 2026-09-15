@@ -27,4 +27,8 @@ public class FenceUpdateRequestDTO {
     private BigDecimal lengthKm;
 
     private String health;
+
+    private String gateway;
+
+    private Long gatewayId;
 }

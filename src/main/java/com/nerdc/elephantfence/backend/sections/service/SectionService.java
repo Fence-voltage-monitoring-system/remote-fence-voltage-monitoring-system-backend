@@ -7,6 +7,8 @@ import com.nerdc.elephantfence.backend.locations.entity.District;
 import com.nerdc.elephantfence.backend.locations.entity.Province;
 import com.nerdc.elephantfence.backend.locations.repository.DistrictRepository;
 import com.nerdc.elephantfence.backend.locations.repository.ProvinceRepository;
+import com.nerdc.elephantfence.backend.devices.entity.Device;
+import com.nerdc.elephantfence.backend.devices.repository.DeviceRepository;
 import com.nerdc.elephantfence.backend.sections.dto.SectionCreateRequestDTO;
 import com.nerdc.elephantfence.backend.sections.dto.SectionResponseDTO;
 import com.nerdc.elephantfence.backend.sections.dto.SectionUpdateRequestDTO;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +38,7 @@ public class SectionService {
     private final ProvinceRepository provinceRepository;
     private final DistrictRepository districtRepository;
     private final UserRepository userRepository;
+    private final DeviceRepository deviceRepository;
 
     @Transactional(readOnly = true)
     public List<SectionResponseDTO> getByFenceId(Long fenceId) {
@@ -81,7 +85,11 @@ public class SectionService {
                 .districtId(districtId)
                 .build();
 
-        return toResponse(sectionRepository.save(section));
+        Section saved = sectionRepository.save(section);
+        if (dto.getDeviceId() != null && dto.getDeviceId() > 0) {
+            assignDeviceToSection(dto.getDeviceId(), saved.getFenceId(), saved.getId());
+        }
+        return toResponse(saved);
     }
 
     @Transactional
@@ -117,7 +125,15 @@ public class SectionService {
             section.setDistrictId(distId);
         }
 
-        return toResponse(sectionRepository.save(section));
+        Section saved = sectionRepository.save(section);
+        if (dto.getDeviceId() != null) {
+            if (dto.getDeviceId() <= 0) {
+                unassignDevicesFromSection(saved.getId());
+            } else {
+                assignDeviceToSection(dto.getDeviceId(), saved.getFenceId(), saved.getId());
+            }
+        }
+        return toResponse(saved);
     }
 
     @Transactional
@@ -277,7 +293,39 @@ public class SectionService {
         return maxIndex + 1;
     }
 
+    private void assignDeviceToSection(Long deviceId, Long fenceId, Long sectionId) {
+        unassignDevicesFromSection(sectionId);
+        Device device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new IllegalArgumentException("Device not found with ID: " + deviceId));
+        device.setFenceId(fenceId);
+        device.setSectionId(sectionId);
+        device.setStatus(com.nerdc.elephantfence.backend.devices.entity.DeviceStatus.online);
+        deviceRepository.save(device);
+    }
+
+    private void unassignDevicesFromSection(Long sectionId) {
+        List<Device> devices = deviceRepository.findBySectionId(sectionId);
+        for (Device dev : devices) {
+            dev.setFenceId(null);
+            dev.setSectionId(null);
+            dev.setStatus(com.nerdc.elephantfence.backend.devices.entity.DeviceStatus.offline);
+            deviceRepository.save(dev);
+        }
+    }
+
     private SectionResponseDTO toResponse(Section section) {
+        Long deviceId = null;
+        String deviceName = null;
+        String deviceSerial = null;
+
+        Optional<Device> optDevice = deviceRepository.findFirstBySectionId(section.getId());
+        if (optDevice.isPresent()) {
+            Device dev = optDevice.get();
+            deviceId = dev.getId();
+            deviceName = dev.getName();
+            deviceSerial = dev.getSerial();
+        }
+
         return SectionResponseDTO.builder()
                 .id(section.getId())
                 .fenceId(section.getFenceId())
@@ -290,6 +338,9 @@ public class SectionService {
                 .status(section.getStatus().name())
                 .provinceId(section.getProvinceId())
                 .districtId(section.getDistrictId())
+                .deviceId(deviceId)
+                .deviceName(deviceName)
+                .deviceSerial(deviceSerial)
                 .updatedAt(section.getUpdatedAt())
                 .build();
     }

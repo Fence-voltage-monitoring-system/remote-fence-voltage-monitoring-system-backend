@@ -26,4 +26,8 @@ public class GatewayCreateRequestDTO {
     private List<String> fences;
 
     private String firmware;
+
+    private Double latitude;
+
+    private Double longitude;
 }

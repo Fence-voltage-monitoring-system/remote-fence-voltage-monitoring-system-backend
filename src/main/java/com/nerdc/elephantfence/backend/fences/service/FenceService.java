@@ -360,6 +360,10 @@ public class FenceService {
                 .sections((int) sectionCount)
                 .gateway(assignedGwOpt.map(Gateway::getName).orElse(null))
                 .gatewayId(assignedGwOpt.map(Gateway::getId).orElse(null))
+                .gatewaySerial(assignedGwOpt.map(Gateway::getSerial).orElse(null))
+                .gatewayLatitude(assignedGwOpt.map(Gateway::getLatitude).orElse(null))
+                .gatewayLongitude(assignedGwOpt.map(Gateway::getLongitude).orElse(null))
+                .gatewayStatus(assignedGwOpt.map(Gateway::getStatus).orElse(null))
                 .createdAt(fence.getCreatedAt())
                 .updatedAt(fence.getUpdatedAt())
                 .build();

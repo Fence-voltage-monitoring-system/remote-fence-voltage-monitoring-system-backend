@@ -29,7 +29,7 @@ public interface GatewayRepository extends JpaRepository<Gateway, Long> {
                    "SELECT f.name FROM fences f JOIN gateway_fences gf ON f.id = gf.fence_id WHERE gf.gateway_id = :gatewayId", nativeQuery = true)
     List<String> findFenceNamesByGatewayId(@Param("gatewayId") Long gatewayId);
 
-    @Query(value = "SELECT g.* FROM gateways g JOIN gateway_fences gf ON g.id = gf.gateway_id WHERE gf.fence_id = :fenceId LIMIT 1", nativeQuery = true)
+    @Query(value = "SELECT g.* FROM gateways g WHERE g.id IN (SELECT gateway_id FROM fences WHERE id = :fenceId AND gateway_id IS NOT NULL UNION SELECT gateway_id FROM gateway_fences WHERE fence_id = :fenceId) LIMIT 1", nativeQuery = true)
     Optional<Gateway> findGatewayByFenceId(@Param("fenceId") Long fenceId);
 
     @org.springframework.data.jpa.repository.Modifying

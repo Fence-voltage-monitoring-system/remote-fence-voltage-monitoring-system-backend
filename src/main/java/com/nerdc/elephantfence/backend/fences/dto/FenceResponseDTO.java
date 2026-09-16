@@ -33,6 +33,10 @@ public class FenceResponseDTO {
     private Integer sections; // Mapped for frontend FenceRecord
     private String gateway; // Mapped for frontend FenceRecord
     private Long gatewayId;
+    private String gatewaySerial;
+    private Double gatewayLatitude;
+    private Double gatewayLongitude;
+    private String gatewayStatus;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

@@ -7,6 +7,7 @@ import com.nerdc.elephantfence.backend.locations.entity.District;
 import com.nerdc.elephantfence.backend.locations.entity.Province;
 import com.nerdc.elephantfence.backend.locations.repository.DistrictRepository;
 import com.nerdc.elephantfence.backend.locations.repository.ProvinceRepository;
+import com.nerdc.elephantfence.backend.devices.repository.DeviceRepository;
 import com.nerdc.elephantfence.backend.sections.dto.SectionCreateRequestDTO;
 import com.nerdc.elephantfence.backend.sections.dto.SectionResponseDTO;
 import com.nerdc.elephantfence.backend.sections.dto.SectionUpdateRequestDTO;
@@ -53,6 +54,9 @@ class SectionServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private DeviceRepository deviceRepository;
 
     @InjectMocks
     private SectionService sectionService;

@@ -12,6 +12,7 @@ import com.nerdc.elephantfence.backend.locations.entity.District;
 import com.nerdc.elephantfence.backend.locations.entity.Province;
 import com.nerdc.elephantfence.backend.locations.repository.DistrictRepository;
 import com.nerdc.elephantfence.backend.locations.repository.ProvinceRepository;
+import com.nerdc.elephantfence.backend.gateways.repository.GatewayRepository;
 import com.nerdc.elephantfence.backend.sections.repository.SectionRepository;
 import com.nerdc.elephantfence.backend.users.dto.UserResponseDTO;
 import com.nerdc.elephantfence.backend.users.entity.Role;
@@ -53,6 +54,9 @@ class FenceServiceTest {
 
     @Mock
     private SectionRepository sectionRepository;
+
+    @Mock
+    private GatewayRepository gatewayRepository;
 
     @InjectMocks
     private FenceService fenceService;

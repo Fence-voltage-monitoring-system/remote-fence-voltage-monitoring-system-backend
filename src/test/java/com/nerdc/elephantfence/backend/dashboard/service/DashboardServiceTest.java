@@ -132,14 +132,17 @@ class DashboardServiceTest {
         assertThat(response.getAlertCounts().getResolved()).isEqualTo(5L);
     }
 
-    // ─── Test 5: getDeviceAnalytics throws when device not found ─────────────
+    // ─── Test 5: getDeviceAnalytics returns fallback when device not found ──
 
     @Test
-    void getDeviceAnalytics_shouldThrowWhenDeviceNotFound() {
+    void getDeviceAnalytics_shouldReturnFallbackWhenDeviceNotFound() {
         when(dashboardRepository.findDeviceContext(99L)).thenReturn(emptyRowList());
+        when(dashboardRepository.findFirstActiveDeviceContext()).thenReturn(emptyRowList());
 
-        assertThatThrownBy(() -> dashboardService.getDeviceAnalytics("99"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Device not found with ID: 99");
+        DeviceAnalyticsResponseDTO response = dashboardService.getDeviceAnalytics("99");
+
+        assertThat(response).isNotNull();
+        assertThat(response.getDevice()).isNotNull();
+        assertThat(response.getDevice().getDeviceId()).isEqualTo("99");
     }
 }

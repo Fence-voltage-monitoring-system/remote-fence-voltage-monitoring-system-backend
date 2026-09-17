@@ -33,6 +33,8 @@ public class NotificationService {
     private final SectionRepository sectionRepository;
     private final UserRepository userRepository;
     private final NotificationWebSocketHandler webSocketHandler;
+    private final EmailService emailService;
+    private final SmsService smsService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional(readOnly = true)
@@ -111,11 +113,35 @@ public class NotificationService {
     private void broadcastNotification(UserNotification notif) {
         try {
             String json = objectMapper.writeValueAsString(toResponse(notif));
-            webSocketHandler.broadcast(notif.getUserId(),json);
+            webSocketHandler.broadcast(notif.getUserId(), json);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             log.error("Failed to broadcast notification websocket update", e);
         }
+
+        try {
+            if (notif.getUserId() != null) {
+                userRepository.findById(notif.getUserId()).ifPresent(user -> {
+                    String fenceName = notif.getFenceId() != null
+                            ? fenceRepository.findById(notif.getFenceId()).map(f -> f.getName()).orElse("Electric Fence")
+                            : "Electric Fence";
+
+                    String severity = "CRITICAL".equalsIgnoreCase(notif.getCategory()) ? "CRITICAL" : "WARNING";
+
+                    if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                        emailService.sendAlertEmail(user.getEmail(), user.getFullName(), notif.getTitle(), notif.getMessage(), fenceName, severity);
+                    }
+
+                    if (user.getContactNumber() != null && !user.getContactNumber().isBlank()) {
+                        smsService.sendAlertSms(user.getContactNumber(), notif.getTitle(), fenceName, severity);
+                    }
+
+                });
+            }
+        } catch (Exception e) {
+            log.error("Failed to dispatch Email/SMS channels for notification ID {}", notif.getId(), e);
+        }
     }
+
 
     private UUID getCurrentUserId() {
         var auth = SecurityContextHolder.getContext().getAuthentication();

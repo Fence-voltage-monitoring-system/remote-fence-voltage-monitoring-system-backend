@@ -46,6 +46,10 @@ class NotificationServiceTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private NotificationWebSocketHandler webSocketHandler;
+    @Mock
+    private EmailService emailService;
+    @Mock
+    private SmsService smsService;
 
     @InjectMocks
     private NotificationService notificationService;

@@ -2,6 +2,16 @@ spring:
   application:
     name: elephant-fence-backend
 
+  autoconfigure:
+    exclude:
+      - de.codecentric.boot.admin.server.config.AdminServerNotifierAutoConfiguration
+
+  boot:
+    admin:
+      notify:
+        mail:
+          enabled: false
+
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/elephant_fence}
     username: ${DB_USERNAME:thamindubandara}
@@ -17,6 +27,18 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
     locations: classpath:db/migration
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 server:
   port: ${SERVER_PORT:8080}
@@ -34,5 +56,15 @@ app:
     refresh-expiration-ms: 604800000 # 7 days
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost,http://localhost:80,http://localhost:4200,http://localhost:8080,http://127.0.0.1,http://127.0.0.1:80}
+  mail:
+    from: ${MAIL_FROM:alerts@dwc.gov.lk}
+    enabled: ${MAIL_ENABLED:true}
+  sms:
+    enabled: ${SMS_ENABLED:true}
+    api-url: ${SMS_API_URL:https://api.dialog.lk/sms/v1/send}
+    api-key: ${SMS_API_KEY:mock-dialog-sms-key}
+    sender-id: ${SMS_SENDER_ID:DWC_FENCE}
+
+
 
 

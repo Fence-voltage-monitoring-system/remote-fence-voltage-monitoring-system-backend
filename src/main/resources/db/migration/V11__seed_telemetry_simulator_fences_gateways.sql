@@ -1,5 +1,6 @@
 -- ==============================================================================
--- V11: Clean and Seed Telemetry Simulator Topology (5 Gateways, 5 Fences, 25 Sections, 25 Devices)
+-- V11: Clean and Seed Telemetry Simulator Topology & Role-Based Access Control
+-- Seeds Provinces, Districts, Users, Gateways, Fences, Sections, and Devices
 -- ==============================================================================
 
 -- 1. Ensure Sri Lanka Provinces exist
@@ -44,7 +45,27 @@ INSERT INTO districts (id, province_id, name) VALUES
     (25, 9, 'Kegalle')
 ON CONFLICT (id) DO NOTHING;
 
--- 3. Clear out old operational and telemetry data
+-- ==============================================================================
+-- 3. Seed Default System Users (Password: Admin@123456)
+-- ==============================================================================
+INSERT INTO users (id, full_name, email, password_hash, role, enabled, password_change_required) VALUES
+    ('a0000000-0000-0000-0000-000000000001', 'National Super Admin', 'admin@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'SUPER_ADMIN', TRUE, FALSE),
+    ('a0000000-0000-0000-0000-000000000002', 'North Central Regional Admin', 'admin.nc@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'REGIONAL_ADMIN', TRUE, FALSE),
+    ('a0000000-0000-0000-0000-000000000003', 'Southern Regional Admin', 'admin.south@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'REGIONAL_ADMIN', TRUE, FALSE),
+    ('a0000000-0000-0000-0000-000000000004', 'Eastern Regional Admin', 'admin.east@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'REGIONAL_ADMIN', TRUE, FALSE),
+    ('a0000000-0000-0000-0000-000000000005', 'Chief Wildlife Maintenance Officer', 'tech.maintenance@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'MAINTENANCE', TRUE, FALSE)
+ON CONFLICT (id) DO UPDATE SET
+    role = EXCLUDED.role,
+    enabled = EXCLUDED.enabled;
+
+-- Assign Admin Scopes
+INSERT INTO user_provinces (user_id, province_id) VALUES
+    ('a0000000-0000-0000-0000-000000000002', 7), -- North Central
+    ('a0000000-0000-0000-0000-000000000003', 3), -- Southern
+    ('a0000000-0000-0000-0000-000000000004', 5)  -- Eastern
+ON CONFLICT (user_id, province_id) DO NOTHING;
+
+-- 4. Clear out old operational and telemetry data
 DELETE FROM telemetry_readings;
 DELETE FROM alert_history;
 DELETE FROM alert_action_logs;
@@ -65,7 +86,7 @@ ALTER TABLE devices ALTER COLUMN id RESTART WITH 1;
 ALTER TABLE telemetry_readings ALTER COLUMN id RESTART WITH 1;
 
 -- ==============================================================================
--- 4. Seed 5 Regional Gateways
+-- 5. Seed 5 Regional Gateways
 -- ==============================================================================
 INSERT INTO gateways (id, name, serial, imei, status, signal, power, firmware, enabled) VALUES
     (1, 'Anuradhapura North Hub', 'GW-ANURADHAPURA-01', '864201040000001', 'online', 92, 98, 'v2.4.1', TRUE),
@@ -75,14 +96,14 @@ INSERT INTO gateways (id, name, serial, imei, status, signal, power, firmware, e
     (5, 'Trincomalee North-East Hub', 'GW-TRINCOMALEE-05','864201040000005', 'online', 89, 94, 'v2.4.1', TRUE);
 
 -- ==============================================================================
--- 5. Seed 5 National Fences
+-- 6. Seed 5 National Fences (Assigned to Gateways & Maintenance Admins)
 -- ==============================================================================
-INSERT INTO fences (id, code, name, province_id, district_id, length_km, gateway_id, average_voltage_kv, health) VALUES
-    (1, 'FC-WILPATPU-01', 'Wilpattu Border Protection Fence',   7, 20, 15.50, 1, 6.80, 'HEALTHY'),
-    (2, 'FC-MINNERIYA-01','Minneriya Elephant Corridor Fence',  7, 21, 12.00, 2, 6.70, 'HEALTHY'),
-    (3, 'FC-BUNDALA-01',  'Bundala Wildlife Reserve Fence',     3, 9,  10.20, 3, 6.80, 'HEALTHY'),
-    (4, 'FC-GALOYA-01',   'Gal Oya Valley Protection Fence',    5, 16, 14.80, 4, 6.60, 'HEALTHY'),
-    (5, 'FC-SOMAWATH-01', 'Somawathiya Border Corridor Fence',  5, 17, 11.50, 5, 6.70, 'HEALTHY');
+INSERT INTO fences (id, code, name, province_id, district_id, length_km, gateway_id, average_voltage_kv, health, primary_maintenance_user_id) VALUES
+    (1, 'FC-WILPATPU-01', 'Wilpattu Border Protection Fence',   7, 20, 15.50, 1, 6.80, 'HEALTHY', 'a0000000-0000-0000-0000-000000000005'),
+    (2, 'FC-MINNERIYA-01','Minneriya Elephant Corridor Fence',  7, 21, 12.00, 2, 6.70, 'HEALTHY', 'a0000000-0000-0000-0000-000000000005'),
+    (3, 'FC-BUNDALA-01',  'Bundala Wildlife Reserve Fence',     3, 9,  10.20, 3, 6.80, 'HEALTHY', 'a0000000-0000-0000-0000-000000000005'),
+    (4, 'FC-GALOYA-01',   'Gal Oya Valley Protection Fence',    5, 16, 14.80, 4, 6.60, 'HEALTHY', 'a0000000-0000-0000-0000-000000000005'),
+    (5, 'FC-SOMAWATH-01', 'Somawathiya Border Corridor Fence',  5, 17, 11.50, 5, 6.70, 'HEALTHY', 'a0000000-0000-0000-0000-000000000005');
 
 -- Link Gateway to Fences
 INSERT INTO gateway_fences (gateway_id, fence_id) VALUES
@@ -92,8 +113,16 @@ INSERT INTO gateway_fences (gateway_id, fence_id) VALUES
     (4, 4),
     (5, 5);
 
+-- Link Backup Maintenance Users
+INSERT INTO fence_backup_maintenance_users (fence_id, user_id) VALUES
+    (1, 'a0000000-0000-0000-0000-000000000001'),
+    (2, 'a0000000-0000-0000-0000-000000000001'),
+    (3, 'a0000000-0000-0000-0000-000000000001'),
+    (4, 'a0000000-0000-0000-0000-000000000001'),
+    (5, 'a0000000-0000-0000-0000-000000000001');
+
 -- ==============================================================================
--- 6. Seed 25 Fence Sections (5 per fence) with GPS coordinates
+-- 7. Seed 25 Fence Sections (5 per fence) with GPS coordinates
 -- ==============================================================================
 -- Fence 1: Wilpattu Border Protection Fence
 INSERT INTO sections (id, fence_id, code, start_gps, end_gps, length_km, voltage_kv, battery, status, province_id, district_id) VALUES
@@ -136,7 +165,7 @@ INSERT INTO sections (id, fence_id, code, start_gps, end_gps, length_km, voltage
     (25, 5, 'SEC-05', '8.2400,81.2350', '8.2510,81.2470', 2.30, 6.50, 95, 'HEALTHY', 5, 17);
 
 -- ==============================================================================
--- 7. Seed 25 IoT Voltage Monitoring Devices (Linked to Gateways & Sections)
+-- 8. Seed 25 IoT Voltage Monitoring Devices (Linked to Gateways & Sections)
 -- ==============================================================================
 -- Gateway 1 (Wilpattu) Devices
 INSERT INTO devices (id, gateway_id, fence_id, section_id, name, serial, type, status, voltage, signal, battery, enabled) VALUES

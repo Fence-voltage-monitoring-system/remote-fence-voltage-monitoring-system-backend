@@ -48,15 +48,17 @@ ON CONFLICT (id) DO NOTHING;
 -- ==============================================================================
 -- 3. Seed Default System Users (Password: Admin@123456)
 -- ==============================================================================
+-- Safely clean up any existing users with these emails to avoid UUID/email collision
+DELETE FROM user_provinces WHERE user_id IN (SELECT id FROM users WHERE email IN ('admin@nerdc.lk', 'admin.nc@nerdc.lk', 'admin.south@nerdc.lk', 'admin.east@nerdc.lk', 'tech.maintenance@nerdc.lk'));
+DELETE FROM user_districts WHERE user_id IN (SELECT id FROM users WHERE email IN ('admin@nerdc.lk', 'admin.nc@nerdc.lk', 'admin.south@nerdc.lk', 'admin.east@nerdc.lk', 'tech.maintenance@nerdc.lk'));
+DELETE FROM users WHERE email IN ('admin@nerdc.lk', 'admin.nc@nerdc.lk', 'admin.south@nerdc.lk', 'admin.east@nerdc.lk', 'tech.maintenance@nerdc.lk');
+
 INSERT INTO users (id, full_name, email, password_hash, role, enabled, password_change_required) VALUES
-    ('a0000000-0000-0000-0000-000000000001', 'National Super Admin', 'admin@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'SUPER_ADMIN', TRUE, FALSE),
-    ('a0000000-0000-0000-0000-000000000002', 'North Central Regional Admin', 'admin.nc@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'REGIONAL_ADMIN', TRUE, FALSE),
-    ('a0000000-0000-0000-0000-000000000003', 'Southern Regional Admin', 'admin.south@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'REGIONAL_ADMIN', TRUE, FALSE),
-    ('a0000000-0000-0000-0000-000000000004', 'Eastern Regional Admin', 'admin.east@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'REGIONAL_ADMIN', TRUE, FALSE),
-    ('a0000000-0000-0000-0000-000000000005', 'Chief Wildlife Maintenance Officer', 'tech.maintenance@nerdc.lk', '$2a$10$wO8.J4nE3aQxK1w6T0ZlOePZ2x4h9Z0gL2y0wO4v4e9X.M5wWKe', 'MAINTENANCE', TRUE, FALSE)
-ON CONFLICT (id) DO UPDATE SET
-    role = EXCLUDED.role,
-    enabled = EXCLUDED.enabled;
+    ('a0000000-0000-0000-0000-000000000001', 'National Super Admin', 'admin@nerdc.lk', '$2a$10$i4jTHUntTL5gYMeA7Fvgfurnf5nThxeYWRxFz4Js1w2WZcdnrWzfa', 'SUPER_ADMIN', TRUE, FALSE),
+    ('a0000000-0000-0000-0000-000000000002', 'North Central Regional Admin', 'admin.nc@nerdc.lk', '$2a$10$i4jTHUntTL5gYMeA7Fvgfurnf5nThxeYWRxFz4Js1w2WZcdnrWzfa', 'REGIONAL_ADMIN', TRUE, FALSE),
+    ('a0000000-0000-0000-0000-000000000003', 'Southern Regional Admin', 'admin.south@nerdc.lk', '$2a$10$i4jTHUntTL5gYMeA7Fvgfurnf5nThxeYWRxFz4Js1w2WZcdnrWzfa', 'REGIONAL_ADMIN', TRUE, FALSE),
+    ('a0000000-0000-0000-0000-000000000004', 'Eastern Regional Admin', 'admin.east@nerdc.lk', '$2a$10$i4jTHUntTL5gYMeA7Fvgfurnf5nThxeYWRxFz4Js1w2WZcdnrWzfa', 'REGIONAL_ADMIN', TRUE, FALSE),
+    ('a0000000-0000-0000-0000-000000000005', 'Chief Wildlife Maintenance Officer', 'tech.maintenance@nerdc.lk', '$2a$10$i4jTHUntTL5gYMeA7Fvgfurnf5nThxeYWRxFz4Js1w2WZcdnrWzfa', 'MAINTENANCE', TRUE, FALSE);
 
 -- Assign Admin Scopes
 INSERT INTO user_provinces (user_id, province_id) VALUES
@@ -66,11 +68,11 @@ INSERT INTO user_provinces (user_id, province_id) VALUES
 ON CONFLICT (user_id, province_id) DO NOTHING;
 
 -- 4. Clear out old operational and telemetry data
-DELETE FROM telemetry_readings;
-DELETE FROM alert_history;
-DELETE FROM alert_action_logs;
+DELETE FROM user_notifications;
+DELETE FROM alert_events;
 DELETE FROM alert_comments;
 DELETE FROM alerts;
+DELETE FROM telemetry_readings;
 DELETE FROM gateway_fences;
 DELETE FROM fence_backup_maintenance_users;
 DELETE FROM devices;
@@ -85,15 +87,19 @@ ALTER TABLE sections ALTER COLUMN id RESTART WITH 1;
 ALTER TABLE devices ALTER COLUMN id RESTART WITH 1;
 ALTER TABLE telemetry_readings ALTER COLUMN id RESTART WITH 1;
 
+-- Add gateway latitude and longitude columns if missing
+ALTER TABLE gateways ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE gateways ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+
 -- ==============================================================================
 -- 5. Seed 5 Regional Gateways
 -- ==============================================================================
-INSERT INTO gateways (id, name, serial, imei, status, signal, power, firmware, enabled) VALUES
-    (1, 'Anuradhapura North Hub', 'GW-ANURADHAPURA-01', '864201040000001', 'online', 92, 98, 'v2.4.1', TRUE),
-    (2, 'Polonnaruwa South Hub',  'GW-POLONNARUWA-02',  '864201040000002', 'online', 88, 96, 'v2.4.1', TRUE),
-    (3, 'Hambantota Southern Hub', 'GW-HAMBANTOTA-03',   '864201040000003', 'online', 90, 97, 'v2.4.1', TRUE),
-    (4, 'Ampara Eastern Hub',      'GW-AMPARA-04',       '864201040000004', 'online', 85, 95, 'v2.4.1', TRUE),
-    (5, 'Trincomalee North-East Hub', 'GW-TRINCOMALEE-05','864201040000005', 'online', 89, 94, 'v2.4.1', TRUE);
+INSERT INTO gateways (id, name, serial, imei, status, signal, power, firmware, enabled, latitude, longitude) VALUES
+    (1, 'Anuradhapura North Hub', 'GW-ANURADHAPURA-01', '864201040000001', 'online', 92, 98, 'v2.4.1', TRUE, 8.4520, 79.9820),
+    (2, 'Polonnaruwa South Hub',  'GW-POLONNARUWA-02',  '864201040000002', 'online', 88, 96, 'v2.4.1', TRUE, 8.0250, 80.8850),
+    (3, 'Hambantota Southern Hub', 'GW-HAMBANTOTA-03',   '864201040000003', 'online', 90, 97, 'v2.4.1', TRUE, 6.1850, 81.1950),
+    (4, 'Ampara Eastern Hub',      'GW-AMPARA-04',       '864201040000004', 'online', 85, 95, 'v2.4.1', TRUE, 7.2150, 81.5250),
+    (5, 'Trincomalee North-East Hub', 'GW-TRINCOMALEE-05','864201040000005', 'online', 89, 94, 'v2.4.1', TRUE, 8.1950, 81.1850);
 
 -- ==============================================================================
 -- 6. Seed 5 National Fences (Assigned to Gateways & Maintenance Admins)

@@ -1,6 +1,5 @@
 package com.nerdc.elephantfence.backend.alerts.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nerdc.elephantfence.backend.alerts.dto.*;
 import com.nerdc.elephantfence.backend.alerts.entity.Alert;
 import com.nerdc.elephantfence.backend.alerts.entity.AlertComment;

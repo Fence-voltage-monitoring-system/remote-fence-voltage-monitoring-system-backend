@@ -223,6 +223,117 @@ public class ConfigurationService {
         return toResponseDTO(newConfig);
     }
 
+    public record GatewayTimingConfig(int expectedIntervalMinutes, int graceMinutes, int offlineTimeoutMinutes, int staleDataMinutes) {}
+
+    public GatewayTimingConfig getGatewayTimingConfig() {
+        try {
+            ConfigurationSaveResponseDTO generalDTO = getSection("general");
+            if (generalDTO != null && generalDTO.getValue() != null) {
+                Map<String, Object> val = generalDTO.getValue();
+                int expected = parseInteger(val.get("expectedReportingIntervalMinutes"), 15);
+                int grace = parseInteger(val.get("lateArrivalGraceMinutes"), 5);
+                int timeout = parseInteger(val.get("offlineTimeoutMinutes"), 30);
+                int stale = parseInteger(val.get("staleDataMinutes"), 60);
+                return new GatewayTimingConfig(expected, grace, timeout, stale);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read gateway timing config, using defaults", e);
+        }
+        return new GatewayTimingConfig(15, 5, 30, 60);
+    }
+
+    public record SystemModeConfig(
+            boolean maintenanceMode,
+            boolean allowLoginDuringMaintenance,
+            boolean readOnlyMode,
+            String maintenanceMessage
+    ) {}
+
+    public SystemModeConfig getSystemModeConfig() {
+        try {
+            ConfigurationSaveResponseDTO generalDTO = getSection("general");
+            if (generalDTO != null && generalDTO.getValue() != null) {
+                Map<String, Object> val = generalDTO.getValue();
+                boolean maintenance = parseBoolean(val.get("maintenanceMode"), false);
+                boolean allowLogin = parseBoolean(val.get("allowLoginDuringMaintenance"), true);
+                boolean readOnly = parseBoolean(val.get("readOnlyMode"), false);
+                String message = val.get("maintenanceMessage") instanceof String s && !s.isBlank()
+                        ? s
+                        : "System is undergoing scheduled maintenance.";
+                return new SystemModeConfig(maintenance, allowLogin, readOnly, message);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read system mode config, using defaults", e);
+        }
+        return new SystemModeConfig(false, true, false, "System is undergoing scheduled maintenance.");
+    }
+
+    public boolean isMaintenanceMode() {
+        return getSystemModeConfig().maintenanceMode();
+    }
+
+    public boolean isReadOnlyMode() {
+        return getSystemModeConfig().readOnlyMode();
+    }
+
+    public record VoltageThresholdConfig(
+            double healthyKv,
+            double warningKv,
+            double criticalKv,
+            double lowBatteryPercent
+    ) {}
+
+    public VoltageThresholdConfig getVoltageThresholdConfig() {
+        try {
+            ConfigurationSaveResponseDTO voltageDTO = getSection("voltage");
+            if (voltageDTO != null && voltageDTO.getValue() != null) {
+                Map<String, Object> val = voltageDTO.getValue();
+                double healthy = parseDouble(val.get("healthyKv"), 5.0);
+                double warning = parseDouble(val.get("warningKv"), 3.0);
+                double critical = parseDouble(val.get("criticalKv"), 1.5);
+                double lowBattery = parseDouble(val.get("lowBatteryPercent"), 20.0);
+                return new VoltageThresholdConfig(healthy, warning, critical, lowBattery);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read voltage threshold config, using defaults", e);
+        }
+        return new VoltageThresholdConfig(5.0, 3.0, 1.5, 20.0);
+    }
+
+    private int parseInteger(Object val, int fallback) {
+        if (val instanceof Number n) {
+            return n.intValue();
+        }
+        if (val instanceof String s) {
+            try {
+                return Integer.parseInt(s.trim());
+            } catch (NumberFormatException ignored) {}
+        }
+        return fallback;
+    }
+
+    private boolean parseBoolean(Object val, boolean fallback) {
+        if (val instanceof Boolean b) {
+            return b;
+        }
+        if (val instanceof String s) {
+            return Boolean.parseBoolean(s.trim());
+        }
+        return fallback;
+    }
+
+    private double parseDouble(Object val, double fallback) {
+        if (val instanceof Number n) {
+            return n.doubleValue();
+        }
+        if (val instanceof String s) {
+            try {
+                return Double.parseDouble(s.trim());
+            } catch (NumberFormatException ignored) {}
+        }
+        return fallback;
+    }
+
     @Transactional
     public ConfigurationSaveResponseDTO saveSection(String section, ConfigurationSaveRequestDTO request, UUID userId) {
         SystemConfiguration config = configRepository.findBySection(section)

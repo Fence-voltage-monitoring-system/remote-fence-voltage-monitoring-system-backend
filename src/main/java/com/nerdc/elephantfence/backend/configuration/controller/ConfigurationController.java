@@ -19,17 +19,28 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/configuration")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('SUPER_ADMIN')")
 public class ConfigurationController {
 
     private final ConfigurationService configurationService;
 
+    @GetMapping("/general")
+    public ResponseEntity<ConfigurationSaveResponseDTO> getGeneralSection() {
+        return ResponseEntity.ok(configurationService.getSection("general"));
+    }
+
+    @GetMapping("/voltage")
+    public ResponseEntity<ConfigurationSaveResponseDTO> getVoltageSection() {
+        return ResponseEntity.ok(configurationService.getSection("voltage"));
+    }
+
     @GetMapping("/{section}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ConfigurationSaveResponseDTO> getSection(@PathVariable String section) {
         return ResponseEntity.ok(configurationService.getSection(section));
     }
 
     @PutMapping("/{section}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ConfigurationSaveResponseDTO> saveSection(
             @PathVariable String section,
             @Valid @RequestBody ConfigurationSaveRequestDTO request,
@@ -39,11 +50,13 @@ public class ConfigurationController {
     }
 
     @GetMapping("/sessions/active")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<SessionOverviewDTO> getSessionOverview() {
         return ResponseEntity.ok(configurationService.getSessionOverview());
     }
 
     @PostMapping("/sessions/active/{sessionId}/revoke")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<Map<String, String>> revokeSession(
             @PathVariable String sessionId,
             @Valid @RequestBody RevokeSessionRequestDTO request
@@ -53,6 +66,7 @@ public class ConfigurationController {
     }
 
     @PostMapping("/sessions/users/{userId}/revoke")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<Map<String, Object>> revokeUserSessions(
             @PathVariable UUID userId,
             @Valid @RequestBody RevokeSessionRequestDTO request

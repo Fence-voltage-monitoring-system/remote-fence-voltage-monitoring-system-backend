@@ -1,5 +1,8 @@
 package com.nerdc.elephantfence.backend.notifications.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.nerdc.elephantfence.backend.configuration.entity.SystemConfiguration;
+import com.nerdc.elephantfence.backend.configuration.repository.SystemConfigurationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +21,7 @@ import java.util.Map;
 public class SmsService {
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final SystemConfigurationRepository configRepository;
 
     @Value("${app.sms.enabled:true}")
     private boolean smsEnabled;
@@ -28,7 +32,7 @@ public class SmsService {
     @Value("${app.sms.api-key:mock-dialog-sms-key}")
     private String smsApiKey;
 
-    @Value("${app.sms.sender-id:DWC_FENCE}")
+    @Value("${app.sms.sender-id:EF_MON}")
     private String senderId;
 
     @Async
@@ -38,9 +42,18 @@ public class SmsService {
             return;
         }
 
+        String effectiveSenderId = senderId;
+        if (configRepository != null) {
+            JsonNode general = configRepository.findBySection("general")
+                    .map(SystemConfiguration::getConfigData).orElse(null);
+            if (general != null && general.hasNonNull("systemCode") && !general.get("systemCode").asText().isBlank()) {
+                effectiveSenderId = general.get("systemCode").asText();
+            }
+        }
+
         String formattedMessage = String.format(
                 "[%s - %s] ALERT: %s on %s. Inspect system immediately.",
-                senderId,
+                effectiveSenderId,
                 severity.toUpperCase(),
                 alertTitle,
                 fenceName

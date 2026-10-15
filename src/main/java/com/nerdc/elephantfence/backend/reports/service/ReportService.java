@@ -16,12 +16,35 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
-@Service @RequiredArgsConstructor @Transactional(readOnly=true)
+@Service @Transactional(readOnly=true)
 public class ReportService {
     private final NamedParameterJdbcTemplate db;
     private final AlertAccess access;
     private final ReportRenderer renderer;
-    private static final ZoneId ZONE = ZoneId.of("Asia/Colombo");
+    private final com.nerdc.elephantfence.backend.configuration.repository.SystemConfigurationRepository configurations;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ReportService(NamedParameterJdbcTemplate db, AlertAccess access, ReportRenderer renderer, com.nerdc.elephantfence.backend.configuration.repository.SystemConfigurationRepository configurations) {
+        this.db = db;
+        this.access = access;
+        this.renderer = renderer;
+        this.configurations = configurations;
+    }
+
+    public ReportService(NamedParameterJdbcTemplate db, AlertAccess access, ReportRenderer renderer) {
+        this(db, access, renderer, null);
+    }
+
+    private ZoneId getZone() {
+        if (configurations == null) return ZoneId.of("Asia/Colombo");
+        return configurations.findBySection("general")
+                .map(c -> {
+                    String tz = c.getConfigData().path("timezone").asText("Asia/Colombo");
+                    try { return ZoneId.of(tz); } catch (Exception ignored) { return ZoneId.of("Asia/Colombo"); }
+                })
+                .orElse(ZoneId.of("Asia/Colombo"));
+    }
+
     private record Fence(long id, String code, String name, String province, String district) {}
     private record Prepared(List<Fence> fences, String title, String range, List<String> warnings, List<Dataset> data) {}
     private List<Fence> allowed(User user) {
@@ -57,8 +80,8 @@ public class ReportService {
         if(present(scope.fence())&&!chosen.isEmpty()) sections=db.query("SELECT code FROM sections WHERE fence_id=:id ORDER BY code",Map.of("id",chosen.getFirst().id()),(rs,n)->Map.of("value",rs.getString(1),"label",rs.getString(1)));
         return Map.of("provinces",options(all.stream().map(Fence::province).toList()),"districts",options(districts),"fences",fences,"sections",sections);
     }
-    private LocalDate[] dates(DateRange range) {
-        LocalDate today=LocalDate.now(ZONE), from, to;
+    private LocalDate[] dates(DateRange range, ZoneId zone) {
+        LocalDate today=LocalDate.now(zone), from, to;
         try {
             if(range.preset()==null || range.preset().equals("CUSTOM")) {from=LocalDate.parse(range.from());to=LocalDate.parse(range.to());}
             else {int days=switch(range.preset()){case "TODAY"->1;case "LAST_7_DAYS"->7;case "LAST_30_DAYS"->30;case "LAST_90_DAYS"->90;default->throw bad("Unknown date range.");};to=today;from=to.minusDays(days-1);}
@@ -68,10 +91,11 @@ public class ReportService {
     }
     private Prepared prepare(ReportRequest r) {
         User user=access.currentUser();
+        ZoneId zone=getZone();
         var fences=selected(allowed(user),r.scope());
-        var dates=dates(r.dateRange());
+        var dates=dates(r.dateRange(), zone);
         var p=new MapSqlParameterSource("ids",fences.isEmpty()?List.of(-1L):fences.stream().map(Fence::id).toList())
-            .addValue("from",dates[0].atStartOfDay(ZONE).toOffsetDateTime()).addValue("to",dates[1].plusDays(1).atStartOfDay(ZONE).toOffsetDateTime())
+            .addValue("from",dates[0].atStartOfDay(zone).toOffsetDateTime()).addValue("to",dates[1].plusDays(1).atStartOfDay(zone).toOffsetDateTime())
             .addValue("section",r.scope().section()).addValue("user",user.getId());
         String section=present(r.scope().section())?" AND s.code=:section":"";
         String alertSection=present(r.scope().section())?" AND a.section_id IN (SELECT id FROM sections WHERE code=:section AND fence_id IN (:ids))":"";
@@ -89,7 +113,10 @@ public class ReportService {
             case GATEWAY_CONNECTIVITY -> "SELECT DISTINCT g.name,g.serial,g.status,g.signal,g.power,g.firmware,g.enabled,g.last_seen FROM gateways g JOIN gateway_fences gf ON gf.gateway_id=g.id WHERE gf.fence_id IN (:ids)"+(present(r.scope().section())?" AND g.id IN (SELECT d.gateway_id FROM devices d JOIN sections s ON s.id=d.section_id WHERE s.fence_id IN (:ids) AND s.code=:section)":"")+" ORDER BY g.name";
             case MAINTENANCE -> maintenance;
         };
-        String title=r.template().name().replace('_',' ')+" Report";
+        String orgName = configurations != null ? configurations.findBySection("general")
+                .map(c -> c.getConfigData().path("organizationName").asText("NERDC"))
+                .orElse("NERDC") : "NERDC";
+        String title = orgName + " · " + r.template().name().replace('_',' ') + " Report";
         var datasets=new ArrayList<Dataset>();datasets.add(dataset(title,sql,p));
         if(r.options().includeAlertHistory()&&r.template()!=Template.ALERT_SUMMARY) datasets.add(dataset("Alert history",alerts,p));
         if(r.options().includeMaintenanceRecords()&&r.template()!=Template.MAINTENANCE) datasets.add(dataset("Incident workflow records",maintenance,p));
@@ -99,7 +126,7 @@ public class ReportService {
         if(r.template()==Template.MAINTENANCE || r.options().includeMaintenanceRecords())warnings.add("Maintenance records show incident workflow events; planned maintenance schedules are not available.");
         if(r.format()==Format.PDF)warnings.add("PDF uses Latin text. Use CSV to preserve Sinhala or Tamil characters.");
         if(datasets.stream().allMatch(d->d.rows().isEmpty()))warnings.add("No records match this selection.");
-        return new Prepared(fences,title,dates[0]+" to "+dates[1]+" (Asia/Colombo)",warnings,datasets);
+        return new Prepared(fences,title,dates[0]+" to "+dates[1]+" ("+zone.getId()+")",warnings,datasets);
     }
     private Dataset dataset(String title,String sql,MapSqlParameterSource params) {return new Dataset(title,db.queryForList(sql+" LIMIT 5001",params));}
     public Map<String,Object> preview(ReportRequest request) {

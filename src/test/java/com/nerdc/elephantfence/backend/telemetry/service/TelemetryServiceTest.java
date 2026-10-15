@@ -1,5 +1,8 @@
 package com.nerdc.elephantfence.backend.telemetry.service;
 
+import com.nerdc.elephantfence.backend.configuration.service.ConfigurationService;
+import com.nerdc.elephantfence.backend.fences.repository.FenceRepository;
+import com.nerdc.elephantfence.backend.sections.repository.SectionRepository;
 import com.nerdc.elephantfence.backend.devices.entity.Device;
 import com.nerdc.elephantfence.backend.devices.entity.DeviceStatus;
 import com.nerdc.elephantfence.backend.devices.repository.DeviceRepository;
@@ -34,6 +37,15 @@ class TelemetryServiceTest {
     @Mock
     private DeviceRepository deviceRepository;
 
+    @Mock
+    private SectionRepository sectionRepository;
+
+    @Mock
+    private FenceRepository fenceRepository;
+
+    @Mock
+    private ConfigurationService configurationService;
+
     @InjectMocks
     private TelemetryService telemetryService;
 
@@ -42,6 +54,9 @@ class TelemetryServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(configurationService.getVoltageThresholdConfig()).thenReturn(
+                new ConfigurationService.VoltageThresholdConfig(5.0, 3.0, 1.5, 20.0)
+        );
         device = Device.builder()
                 .id(1L)
                 .name("Voltage Monitor 1")
@@ -143,5 +158,52 @@ class TelemetryServiceTest {
         assertThat(history).hasSize(1);
         assertThat(history.get(0).getDeviceSerial()).isEqualTo("SN-12345");
         assertThat(history.get(0).getVoltageKv()).isEqualTo(new BigDecimal("6.5"));
+    }
+
+    @Test
+    void ingestTelemetry_shouldUpdateSectionAndFence_basedOnConfiguredThresholds() {
+        device.setSectionId(10L);
+        com.nerdc.elephantfence.backend.sections.entity.Section section =
+                com.nerdc.elephantfence.backend.sections.entity.Section.builder()
+                        .id(10L)
+                        .fenceId(20L)
+                        .code("SEC-01")
+                        .status(com.nerdc.elephantfence.backend.sections.entity.SectionStatus.OFFLINE)
+                        .build();
+
+        com.nerdc.elephantfence.backend.fences.entity.Fence fence =
+                com.nerdc.elephantfence.backend.fences.entity.Fence.builder()
+                        .id(20L)
+                        .code("FNC-01")
+                        .name("Test Fence")
+                        .health(com.nerdc.elephantfence.backend.fences.entity.FenceHealth.OFFLINE)
+                        .build();
+
+        TelemetryIngestRequestDTO dto = TelemetryIngestRequestDTO.builder()
+                .deviceSerial("SN-12345")
+                .voltage(new BigDecimal("1.2")) // < criticalKv (1.5)
+                .battery(85)
+                .build();
+
+        TelemetryReading readingCritical = TelemetryReading.builder()
+                .id(102L)
+                .deviceId(1L)
+                .voltageKv(new BigDecimal("1.2"))
+                .build();
+
+        when(deviceRepository.findBySerialIgnoreCase("SN-12345")).thenReturn(Optional.of(device));
+        when(telemetryRepository.save(any(TelemetryReading.class))).thenReturn(readingCritical);
+        when(sectionRepository.findById(10L)).thenReturn(Optional.of(section));
+        when(fenceRepository.findById(20L)).thenReturn(Optional.of(fence));
+        when(sectionRepository.findByFenceIdOrderByCodeAsc(20L)).thenReturn(List.of(section));
+
+        telemetryService.ingestTelemetry(dto);
+
+        assertThat(section.getStatus()).isEqualTo(com.nerdc.elephantfence.backend.sections.entity.SectionStatus.CRITICAL);
+        assertThat(section.getVoltageKv()).isEqualByComparingTo("1.2");
+        assertThat(fence.getHealth()).isEqualTo(com.nerdc.elephantfence.backend.fences.entity.FenceHealth.CRITICAL);
+        assertThat(fence.getAverageVoltageKv()).isEqualByComparingTo("1.2");
+        verify(sectionRepository).save(section);
+        verify(fenceRepository).save(fence);
     }
 }

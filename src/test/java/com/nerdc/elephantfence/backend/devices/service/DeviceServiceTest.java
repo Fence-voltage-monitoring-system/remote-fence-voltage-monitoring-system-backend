@@ -166,4 +166,46 @@ class DeviceServiceTest {
 
         verify(deviceRepository, times(1)).deleteById(1L);
     }
+
+    @Test
+    void getDeviceById_dynamicStatusBasedOnLastSeen() {
+        // 10 minutes ago -> online (within 15 min interval + 5 min grace)
+        Device onlineDevice = Device.builder()
+                .id(10L)
+                .name("Online DVC")
+                .serial("SN-ON")
+                .type("Voltage Monitor")
+                .enabled(true)
+                .lastSeen(java.time.OffsetDateTime.now().minusMinutes(10))
+                .status(DeviceStatus.offline)
+                .build();
+        when(deviceRepository.findById(10L)).thenReturn(Optional.of(onlineDevice));
+        assertThat(deviceService.getDeviceById(10L).getStatus()).isEqualTo("online");
+
+        // 25 minutes ago -> warning (between 20 and 50 min)
+        Device warningDevice = Device.builder()
+                .id(20L)
+                .name("Warning DVC")
+                .serial("SN-WARN")
+                .type("Voltage Monitor")
+                .enabled(true)
+                .lastSeen(java.time.OffsetDateTime.now().minusMinutes(25))
+                .status(DeviceStatus.offline)
+                .build();
+        when(deviceRepository.findById(20L)).thenReturn(Optional.of(warningDevice));
+        assertThat(deviceService.getDeviceById(20L).getStatus()).isEqualTo("warning");
+
+        // 70 minutes ago -> offline (> 50 min)
+        Device offlineDevice = Device.builder()
+                .id(30L)
+                .name("Offline DVC")
+                .serial("SN-OFF")
+                .type("Voltage Monitor")
+                .enabled(true)
+                .lastSeen(java.time.OffsetDateTime.now().minusMinutes(70))
+                .status(DeviceStatus.online)
+                .build();
+        when(deviceRepository.findById(30L)).thenReturn(Optional.of(offlineDevice));
+        assertThat(deviceService.getDeviceById(30L).getStatus()).isEqualTo("offline");
+    }
 }

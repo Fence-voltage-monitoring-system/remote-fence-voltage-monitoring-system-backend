@@ -24,6 +24,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -104,9 +105,17 @@ public class AlertService {
     public AlertResponseDTO create(CreateAlertRequestDTO dto){
         User actor=getCurrentUser();
         Fence f=fenceRepository.findById(dto.getFenceId()).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Fence not found."));
+        BigDecimal threshold = dto.getThresholdVoltageKv();
+        if (threshold == null && ("LOW_VOLTAGE".equalsIgnoreCase(dto.getType()) || "VOLTAGE_DROP".equalsIgnoreCase(dto.getType()))) {
+            double v = "CRITICAL".equalsIgnoreCase(dto.getSeverity())
+                    ? rules.voltage("criticalKv", 1.5)
+                    : rules.voltage("warningKv", 3.0);
+            threshold = BigDecimal.valueOf(v);
+        }
+
         Alert a=Alert.builder().code("ALT-"+UUID.randomUUID().toString().substring(0,12).toUpperCase()).title(dto.getTitle().trim()).type(dto.getType()).severity(dto.getSeverity())
             .fenceId(f.getId()).provinceId(f.getProvince().getId()).districtId(f.getDistrict().getId()).sectionId(dto.getSectionId())
-            .detectedVoltageKv(dto.getDetectedVoltageKv()).thresholdVoltageKv(dto.getThresholdVoltageKv()).build();
+            .detectedVoltageKv(dto.getDetectedVoltageKv()).thresholdVoltageKv(threshold).build();
         access.requireScope(actor,a);
         if(!access.manage(actor))throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Only administrators can register incidents.");
         if(dto.getSectionId()!=null){

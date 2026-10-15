@@ -8,11 +8,14 @@ import com.nerdc.elephantfence.backend.common.security.JwtTokenProvider;
 import com.nerdc.elephantfence.backend.common.security.UserPrincipal;
 import com.nerdc.elephantfence.backend.configuration.entity.UserSession;
 import com.nerdc.elephantfence.backend.configuration.repository.UserSessionRepository;
+import com.nerdc.elephantfence.backend.configuration.service.ConfigurationService;
+import com.nerdc.elephantfence.backend.users.entity.Role;
 import com.nerdc.elephantfence.backend.users.entity.User;
 import com.nerdc.elephantfence.backend.users.repository.UserRepository;
 import com.nerdc.elephantfence.backend.users.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 
@@ -34,6 +37,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final LoginRateLimiterService rateLimiterService;
     private final UserSessionRepository sessionRepository;
+    private final ConfigurationService configurationService;
 
     @Transactional
     public LoginResponseDTO login(LoginRequestDTO request, jakarta.servlet.http.HttpServletRequest servletRequest) {
@@ -54,6 +58,15 @@ public class AuthService {
         }
 
         rateLimiterService.resetAttempts(clientKey);
+
+        ConfigurationService.SystemModeConfig systemMode = configurationService.getSystemModeConfig();
+        if (systemMode.maintenanceMode() && !systemMode.allowLoginDuringMaintenance()) {
+            boolean isSuperAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a.getAuthority()));
+            if (!isSuperAdmin) {
+                throw new DisabledException(systemMode.maintenanceMessage());
+            }
+        }
 
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         
@@ -119,6 +132,13 @@ public class AuthService {
 
         if (!user.isEnabled()) {
             throw new IllegalStateException("User account is disabled");
+        }
+
+        ConfigurationService.SystemModeConfig systemMode = configurationService.getSystemModeConfig();
+        if (systemMode.maintenanceMode() && !systemMode.allowLoginDuringMaintenance()) {
+            if (user.getRole() != Role.SUPER_ADMIN) {
+                throw new DisabledException(systemMode.maintenanceMessage());
+            }
         }
 
         String newAccessToken = tokenProvider.generateTokenFromUserId(user.getId(), 86400000L, sessionId);

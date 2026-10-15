@@ -239,4 +239,46 @@ class GatewayServiceTest {
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("You are not assigned to district");
     }
+
+    @Test
+    void getGatewayById_dynamicStatusBasedOnLastSeen() {
+        // 10 minutes ago -> online (within 15 min interval + 5 min grace)
+        Gateway onlineGateway = Gateway.builder()
+                .id(1L)
+                .name("Online GW")
+                .serial("GW-ON")
+                .imei("111")
+                .enabled(true)
+                .lastSeen(java.time.OffsetDateTime.now().minusMinutes(10))
+                .fences(Set.of())
+                .build();
+        when(gatewayRepository.findById(1L)).thenReturn(Optional.of(onlineGateway));
+        assertThat(gatewayService.getGatewayById("1").getStatus()).isEqualTo("online");
+
+        // 25 minutes ago -> warning (exceeds 15+5=20 min, but within 20+30=50 min)
+        Gateway warningGateway = Gateway.builder()
+                .id(2L)
+                .name("Warning GW")
+                .serial("GW-WARN")
+                .imei("222")
+                .enabled(true)
+                .lastSeen(java.time.OffsetDateTime.now().minusMinutes(25))
+                .fences(Set.of())
+                .build();
+        when(gatewayRepository.findById(2L)).thenReturn(Optional.of(warningGateway));
+        assertThat(gatewayService.getGatewayById("2").getStatus()).isEqualTo("warning");
+
+        // 70 minutes ago -> offline (exceeds 50 min offline timeout)
+        Gateway offlineGateway = Gateway.builder()
+                .id(3L)
+                .name("Offline GW")
+                .serial("GW-OFF")
+                .imei("333")
+                .enabled(true)
+                .lastSeen(java.time.OffsetDateTime.now().minusMinutes(70))
+                .fences(Set.of())
+                .build();
+        when(gatewayRepository.findById(3L)).thenReturn(Optional.of(offlineGateway));
+        assertThat(gatewayService.getGatewayById("3").getStatus()).isEqualTo("offline");
+    }
 }

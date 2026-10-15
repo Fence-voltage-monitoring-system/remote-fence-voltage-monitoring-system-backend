@@ -9,8 +9,10 @@ import com.nerdc.elephantfence.backend.gateways.repository.GatewayRepository;
 import com.nerdc.elephantfence.backend.users.entity.Role;
 import com.nerdc.elephantfence.backend.users.entity.User;
 import com.nerdc.elephantfence.backend.users.repository.UserRepository;
+import com.nerdc.elephantfence.backend.configuration.service.ConfigurationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,9 @@ public class GatewayService {
     private final GatewayRepository gatewayRepository;
     private final FenceRepository fenceRepository;
     private final UserRepository userRepository;
+
+    @Autowired(required = false)
+    private ConfigurationService configurationService;
 
     @Transactional(readOnly = true)
     public List<GatewayResponseDTO> getAllGateways() {
@@ -242,7 +247,7 @@ public class GatewayService {
                 .serial(gateway.getSerial())
                 .imei(gateway.getImei())
                 .fences(fenceNames)
-                .status(gateway.getStatus())
+                .status(computeGatewayStatus(gateway))
                 .signal(gateway.getSignal())
                 .power(gateway.getPower())
                 .devices(deviceCount)
@@ -254,5 +259,33 @@ public class GatewayService {
                 .createdAt(gateway.getCreatedAt())
                 .updatedAt(gateway.getUpdatedAt())
                 .build();
+    }
+
+    private String computeGatewayStatus(Gateway gateway) {
+        if (!gateway.isEnabled()) {
+            return "offline";
+        }
+        if (gateway.getLastSeen() == null) {
+            return gateway.getStatus() != null ? gateway.getStatus() : "offline";
+        }
+        int expected = 15;
+        int grace = 5;
+        int timeout = 30;
+        if (configurationService != null) {
+            ConfigurationService.GatewayTimingConfig timing = configurationService.getGatewayTimingConfig();
+            expected = timing.expectedIntervalMinutes();
+            grace = timing.graceMinutes();
+            timeout = timing.offlineTimeoutMinutes();
+        }
+
+        Duration duration = Duration.between(gateway.getLastSeen(), OffsetDateTime.now());
+        long minutes = duration.toMinutes();
+        if (minutes <= (expected + grace)) {
+            return "online";
+        } else if (minutes <= (expected + grace + timeout)) {
+            return "warning";
+        } else {
+            return "offline";
+        }
     }
 }

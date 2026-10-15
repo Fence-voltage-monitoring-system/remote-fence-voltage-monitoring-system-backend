@@ -7,10 +7,14 @@ import com.nerdc.elephantfence.backend.devices.dto.UpdateDeviceRequestDTO;
 import com.nerdc.elephantfence.backend.devices.entity.Device;
 import com.nerdc.elephantfence.backend.devices.entity.DeviceStatus;
 import com.nerdc.elephantfence.backend.devices.repository.DeviceRepository;
+import com.nerdc.elephantfence.backend.configuration.service.ConfigurationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Service
@@ -18,6 +22,9 @@ import java.util.List;
 public class DeviceService {
 
     private final DeviceRepository deviceRepository;
+
+    @Autowired(required = false)
+    private ConfigurationService configurationService;
 
     @Transactional(readOnly = true)
     public List<DeviceResponseDTO> getAllDevices() {
@@ -182,7 +189,7 @@ public class DeviceService {
                 .name(device.getName())
                 .serial(device.getSerial())
                 .type(device.getType())
-                .status(device.getStatus().name())
+                .status(computeDeviceStatus(device).name())
                 .voltage(device.getVoltage())
                 .signal(device.getSignal())
                 .battery(device.getBattery())
@@ -193,5 +200,33 @@ public class DeviceService {
                 .createdAt(device.getCreatedAt())
                 .updatedAt(device.getUpdatedAt())
                 .build();
+    }
+
+    private DeviceStatus computeDeviceStatus(Device device) {
+        if (!device.isEnabled()) {
+            return DeviceStatus.offline;
+        }
+        if (device.getLastSeen() == null) {
+            return device.getStatus() != null ? device.getStatus() : DeviceStatus.offline;
+        }
+        int expected = 15;
+        int grace = 5;
+        int timeout = 30;
+        if (configurationService != null) {
+            ConfigurationService.GatewayTimingConfig timing = configurationService.getGatewayTimingConfig();
+            expected = timing.expectedIntervalMinutes();
+            grace = timing.graceMinutes();
+            timeout = timing.offlineTimeoutMinutes();
+        }
+
+        Duration duration = Duration.between(device.getLastSeen(), OffsetDateTime.now());
+        long minutes = duration.toMinutes();
+        if (minutes <= (expected + grace)) {
+            return DeviceStatus.online;
+        } else if (minutes <= (expected + grace + timeout)) {
+            return DeviceStatus.warning;
+        } else {
+            return DeviceStatus.offline;
+        }
     }
 }

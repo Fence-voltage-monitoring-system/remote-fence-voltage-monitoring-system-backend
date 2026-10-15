@@ -7,6 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.nerdc.elephantfence.backend.configuration.entity.SystemConfiguration;
+import com.nerdc.elephantfence.backend.configuration.repository.SystemConfigurationRepository;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Service;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    private final SystemConfigurationRepository configRepository;
 
     @Value("${app.mail.from:alerts@dwc.gov.lk}")
     private String fromEmail;
@@ -31,6 +35,18 @@ public class EmailService {
         }
 
         try {
+            JsonNode general = configRepository != null
+                    ? configRepository.findBySection("general").map(SystemConfiguration::getConfigData).orElse(null)
+                    : null;
+            String orgName = general != null && general.hasNonNull("organizationName")
+                    ? general.get("organizationName").asText() : "NERDC";
+            String sysName = general != null && general.hasNonNull("systemName")
+                    ? general.get("systemName").asText() : "Remote Elephant Fence Monitoring System";
+            String supportEmail = general != null && general.hasNonNull("supportEmail")
+                    ? general.get("supportEmail").asText() : "support@nerdc.lk";
+            String supportPhone = general != null && general.hasNonNull("supportPhone")
+                    ? general.get("supportPhone").asText() : "+94112223344";
+
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
@@ -56,8 +72,8 @@ public class EmailService {
                 <body>
                     <div class="container">
                         <div class="header">
-                            <h2 style="margin:0;">Remote Elephant Fence Monitoring</h2>
-                            <p style="margin:4px 0 0 0; font-size:12px;">Department of Wildlife Conservation</p>
+                            <h2 style="margin:0;">%s</h2>
+                            <p style="margin:4px 0 0 0; font-size:12px;">%s</p>
                         </div>
                         <div class="content">
                             <p>Dear %s,</p>
@@ -67,21 +83,28 @@ public class EmailService {
                                 <strong>%s</strong><br/>
                                 <span>%s</span>
                             </div>
-                            <p>Please log in to the Remote Fence Monitoring System to inspect live section telemetry and manage response work orders.</p>
+                            <p>Please log in to the %s to inspect live section telemetry and manage response work orders.</p>
                         </div>
                         <div class="footer">
-                            Sent automatically by Remote Elephant Fence Monitoring System. Do not reply directly to this email.
+                            Sent automatically by %s. For assistance, contact <a href="mailto:%s">%s</a> or call %s.
                         </div>
                     </div>
                 </body>
                 </html>
                 """.formatted(
+                    sysName,
+                    orgName,
                     recipientName != null ? recipientName : "Officer",
                     fenceName,
                     severity.toLowerCase(),
                     severity.toUpperCase(),
                     alertTitle,
-                    alertMessage
+                    alertMessage,
+                    sysName,
+                    sysName,
+                    supportEmail,
+                    supportEmail,
+                    supportPhone
             );
 
             helper.setText(htmlContent, true);

@@ -16,6 +16,14 @@ public interface AlertRepository extends JpaRepository<Alert, Long>, org.springf
     java.util.Optional<Alert> findByCode(String code);
     List<Alert> findByAssignmentStatusAndAcceptanceDeadlineBefore(String status, OffsetDateTime now);
     List<Alert> findBySectionIdAndStatusNot(Long sectionId, String status);
+    List<Alert> findByFenceIdAndTypeAndStatusNot(Long fenceId, String type, String status);
+    List<Alert> findByDeviceIdAndTypeAndStatusNot(Long deviceId, String type, String status);
+    boolean existsBySectionIdAndTypeAndStatusNot(Long sectionId, String type, String status);
+    boolean existsByFenceIdAndTypeAndStatusNot(Long fenceId, String type, String status);
+    boolean existsByDeviceIdAndTypeAndStatusNot(Long deviceId, String type, String status);
+    List<Alert> findByStatusAndCreatedAtBefore(String status, OffsetDateTime cutoff);
+    java.util.Optional<Alert> findTop1BySectionIdAndTypeAndStatusOrderByResolvedAtDesc(Long sectionId, String type, String status);
+    java.util.Optional<Alert> findTop1ByFenceIdAndTypeAndStatusOrderByResolvedAtDesc(Long fenceId, String type, String status);
 
     @Query("SELECT a FROM Alert a WHERE " +
            "(:severity IS NULL OR :severity = '' OR a.severity = :severity) AND " +

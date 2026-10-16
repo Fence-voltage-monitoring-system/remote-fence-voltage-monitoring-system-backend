@@ -46,6 +46,9 @@ class TelemetryServiceTest {
     @Mock
     private ConfigurationService configurationService;
 
+    @Mock
+    private com.nerdc.elephantfence.backend.alerts.service.AlertService alertService;
+
     @InjectMocks
     private TelemetryService telemetryService;
 

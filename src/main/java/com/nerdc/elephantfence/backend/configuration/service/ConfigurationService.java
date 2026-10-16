@@ -125,7 +125,7 @@ public class ConfigurationService {
           "archiveBeforeDeletion": true,
           "automaticCleanupEnabled": true,
           "cleanupSchedule": "DAILY",
-          "cleanupTime": "07:00"
+          "cleanupTime": "02:00"
         }
         """);
 
@@ -283,6 +283,73 @@ public class ConfigurationService {
             double lowBatteryPercent
     ) {}
 
+    public record AlertRuleConfig(
+            boolean lowVoltageEnabled,
+            boolean criticalVoltageEnabled,
+            boolean wireBreakEnabled,
+            boolean gatewayOfflineEnabled,
+            boolean lowBatteryEnabled,
+            boolean criticalBatteryEnabled,
+            double criticalBatteryPercent,
+            boolean solarFailureEnabled,
+            boolean voltageFluctuationEnabled,
+            int fluctuationCount,
+            int fluctuationWindowMinutes,
+            int abnormalReadingsRequired,
+            int healthyReadingsRequired,
+            int cooldownMinutes,
+            boolean autoResolve,
+            boolean inAppEnabled,
+            boolean websocketEnabled,
+            boolean smsEnabled,
+            boolean escalationEnabled,
+            int acknowledgementTimeoutMinutes,
+            int maintenanceAcceptanceTimeoutMinutes,
+            boolean notifySuperAdmins,
+            boolean notifyRegionalAdmins,
+            boolean notifyFieldAdmins,
+            boolean notifyMaintenance
+    ) {}
+
+    public AlertRuleConfig getAlertRuleConfig() {
+        try {
+            ConfigurationSaveResponseDTO alertsDTO = getSection("alerts");
+            if (alertsDTO != null && alertsDTO.getValue() != null) {
+                Map<String, Object> val = alertsDTO.getValue();
+                return new AlertRuleConfig(
+                        parseBoolean(val.get("lowVoltageEnabled"), true),
+                        parseBoolean(val.get("criticalVoltageEnabled"), true),
+                        parseBoolean(val.get("wireBreakEnabled"), true),
+                        parseBoolean(val.get("gatewayOfflineEnabled"), true),
+                        parseBoolean(val.get("lowBatteryEnabled"), true),
+                        parseBoolean(val.get("criticalBatteryEnabled"), true),
+                        parseDouble(val.get("criticalBatteryPercent"), 10.0),
+                        parseBoolean(val.get("solarFailureEnabled"), true),
+                        parseBoolean(val.get("voltageFluctuationEnabled"), true),
+                        parseInteger(val.get("fluctuationCount"), 4),
+                        parseInteger(val.get("fluctuationWindowMinutes"), 10),
+                        parseInteger(val.get("abnormalReadingsRequired"), 1),
+                        parseInteger(val.get("healthyReadingsRequired"), 2),
+                        parseInteger(val.get("cooldownMinutes"), 30),
+                        parseBoolean(val.get("autoResolve"), true),
+                        parseBoolean(val.get("inAppEnabled"), true),
+                        parseBoolean(val.get("websocketEnabled"), true),
+                        parseBoolean(val.get("smsEnabled"), true),
+                        parseBoolean(val.get("escalationEnabled"), true),
+                        parseInteger(val.get("acknowledgementTimeoutMinutes"), 10),
+                        parseInteger(val.get("maintenanceAcceptanceTimeoutMinutes"), 15),
+                        parseBoolean(val.get("notifySuperAdmins"), true),
+                        parseBoolean(val.get("notifyRegionalAdmins"), true),
+                        parseBoolean(val.get("notifyFieldAdmins"), true),
+                        parseBoolean(val.get("notifyMaintenance"), true)
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read alert rules config, using defaults", e);
+        }
+        return new AlertRuleConfig(true, true, true, true, true, true, 10.0, true, true, 4, 10, 1, 2, 30, true, true, true, true, true, 10, 15, true, true, true, true);
+    }
+
     public VoltageThresholdConfig getVoltageThresholdConfig() {
         try {
             ConfigurationSaveResponseDTO voltageDTO = getSection("voltage");
@@ -298,6 +365,86 @@ public class ConfigurationService {
             log.warn("Failed to read voltage threshold config, using defaults", e);
         }
         return new VoltageThresholdConfig(5.0, 3.0, 1.5, 20.0);
+    }
+
+    public record SecurityPolicyConfig(
+            int minimumPasswordLength,
+            int temporaryPasswordExpiryHours,
+            boolean forceChangeAfterReset,
+            int failedLoginAttempts,
+            int failedAttemptWindowMinutes,
+            int accountLockMinutes,
+            boolean notifyOnAccountLockout,
+            boolean notifyOnPasswordChange,
+            boolean notifyOnNewDeviceLogin,
+            boolean notifyOnScopeChange
+    ) {}
+
+    public SecurityPolicyConfig getSecurityPolicyConfig() {
+        try {
+            ConfigurationSaveResponseDTO dto = getSection("security");
+            if (dto != null && dto.getValue() != null) {
+                Map<String, Object> val = dto.getValue();
+                return new SecurityPolicyConfig(
+                        parseInteger(val.get("minimumPasswordLength"), 12),
+                        parseInteger(val.get("temporaryPasswordExpiryHours"), 24),
+                        parseBoolean(val.get("forceChangeAfterReset"), true),
+                        parseInteger(val.get("failedLoginAttempts"), 5),
+                        parseInteger(val.get("failedAttemptWindowMinutes"), 15),
+                        parseInteger(val.get("accountLockMinutes"), 30),
+                        parseBoolean(val.get("notifyOnAccountLockout"), true),
+                        parseBoolean(val.get("notifyOnPasswordChange"), true),
+                        parseBoolean(val.get("notifyOnNewDeviceLogin"), true),
+                        parseBoolean(val.get("notifyOnScopeChange"), true)
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read security policy config, using defaults", e);
+        }
+        return new SecurityPolicyConfig(12, 24, true, 5, 15, 30, true, true, true, true);
+    }
+
+    public record SessionManagementConfig(
+            int maximumSessionHours,
+            int idleTimeoutMinutes,
+            int rememberMeDays,
+            int logoutWarningMinutes,
+            int maximumConcurrentSessions,
+            String newLoginBehaviour,
+            boolean requireReauthentication,
+            int reauthenticationValidityMinutes,
+            boolean revokeOnPasswordChange,
+            boolean revokeOnPasswordReset,
+            boolean revokeOnRoleOrScopeChange,
+            boolean revokeOnAccountDeactivation,
+            boolean revokeOnSuspiciousLogin
+    ) {}
+
+    public SessionManagementConfig getSessionManagementConfig() {
+        try {
+            ConfigurationSaveResponseDTO dto = getSection("sessions");
+            if (dto != null && dto.getValue() != null) {
+                Map<String, Object> val = dto.getValue();
+                return new SessionManagementConfig(
+                        parseInteger(val.get("maximumSessionHours"), 12),
+                        parseInteger(val.get("idleTimeoutMinutes"), 30),
+                        parseInteger(val.get("rememberMeDays"), 7),
+                        parseInteger(val.get("logoutWarningMinutes"), 5),
+                        parseInteger(val.get("maximumConcurrentSessions"), 2),
+                        val.get("newLoginBehaviour") != null ? val.get("newLoginBehaviour").toString().trim() : "REVOKE_OLDEST",
+                        parseBoolean(val.get("requireReauthentication"), true),
+                        parseInteger(val.get("reauthenticationValidityMinutes"), 5),
+                        parseBoolean(val.get("revokeOnPasswordChange"), true),
+                        parseBoolean(val.get("revokeOnPasswordReset"), true),
+                        parseBoolean(val.get("revokeOnRoleOrScopeChange"), true),
+                        parseBoolean(val.get("revokeOnAccountDeactivation"), true),
+                        parseBoolean(val.get("revokeOnSuspiciousLogin"), true)
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read session management config, using defaults", e);
+        }
+        return new SessionManagementConfig(12, 30, 7, 5, 2, "REVOKE_OLDEST", true, 5, true, true, true, true, true);
     }
 
     private int parseInteger(Object val, int fallback) {
@@ -334,8 +481,114 @@ public class ConfigurationService {
         return fallback;
     }
 
+    public record MapConfiguration(
+            double defaultLatitude,
+            double defaultLongitude,
+            int defaultZoom,
+            String healthyColor,
+            String warningColor,
+            String criticalColor,
+            String offlineColor,
+            String unassignedColor
+    ) {}
+
+    public MapConfiguration getMapConfiguration() {
+        try {
+            ConfigurationSaveResponseDTO dto = getSection("map");
+            if (dto != null && dto.getValue() != null) {
+                Map<String, Object> val = dto.getValue();
+                return new MapConfiguration(
+                        parseDouble(val.get("defaultLatitude"), 7.8731),
+                        parseDouble(val.get("defaultLongitude"), 80.7718),
+                        parseInteger(val.get("defaultZoom"), 7),
+                        val.get("healthyColor") != null ? val.get("healthyColor").toString() : "#4ADE80",
+                        val.get("warningColor") != null ? val.get("warningColor").toString() : "#FBBF24",
+                        val.get("criticalColor") != null ? val.get("criticalColor").toString() : "#F87171",
+                        val.get("offlineColor") != null ? val.get("offlineColor").toString() : "#9CA3AF",
+                        val.get("unassignedColor") != null ? val.get("unassignedColor").toString() : "#4B5563"
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read map config, using defaults", e);
+        }
+        return new MapConfiguration(7.8731, 80.7718, 7, "#4ADE80", "#FBBF24", "#F87171", "#9CA3AF", "#4B5563");
+    }
+
+    private static final java.util.regex.Pattern HEX_COLOR_PATTERN = java.util.regex.Pattern.compile("^#[0-9a-fA-F]{6}$");
+
+    private void validateSection(String section, ConfigurationSaveRequestDTO request) {
+        if (request == null || request.getValue() == null) {
+            throw new IllegalArgumentException("Configuration request and value cannot be null");
+        }
+        if ("map".equalsIgnoreCase(section)) {
+            validateMapConfig(request.getValue());
+        }
+    }
+
+    private void validateMapConfig(Map<String, Object> map) {
+        if (!map.containsKey("defaultLatitude") || map.get("defaultLatitude") == null) {
+            throw new IllegalArgumentException("Default latitude is required");
+        }
+        double lat = parseDouble(map.get("defaultLatitude"), -999.0);
+        if (lat < 5.8 || lat > 10.0) {
+            throw new IllegalArgumentException("Default latitude must be within Sri Lanka territory (5.8 to 10.0)");
+        }
+
+        if (!map.containsKey("defaultLongitude") || map.get("defaultLongitude") == null) {
+            throw new IllegalArgumentException("Default longitude is required");
+        }
+        double lng = parseDouble(map.get("defaultLongitude"), -999.0);
+        if (lng < 79.5 || lng > 82.2) {
+            throw new IllegalArgumentException("Default longitude must be within Sri Lanka territory (79.5 to 82.2)");
+        }
+
+        if (!map.containsKey("defaultZoom") || map.get("defaultZoom") == null) {
+            throw new IllegalArgumentException("Default zoom level is required");
+        }
+        int zoom = parseInteger(map.get("defaultZoom"), -1);
+        if (zoom < 5 || zoom > 18) {
+            throw new IllegalArgumentException("Default zoom level must be between 5 and 18");
+        }
+
+        validateColorField(map, "healthyColor", true);
+        validateColorField(map, "warningColor", true);
+        validateColorField(map, "criticalColor", true);
+        validateColorField(map, "offlineColor", false);
+        validateColorField(map, "unassignedColor", false);
+
+        String healthy = String.valueOf(map.get("healthyColor")).trim();
+        String warning = String.valueOf(map.get("warningColor")).trim();
+        String critical = String.valueOf(map.get("criticalColor")).trim();
+
+        if (healthy.equalsIgnoreCase(warning)) {
+            throw new IllegalArgumentException("Healthy and warning colors cannot be identical");
+        }
+        if (healthy.equalsIgnoreCase(critical)) {
+            throw new IllegalArgumentException("Healthy and critical colors cannot be identical");
+        }
+        if (warning.equalsIgnoreCase(critical)) {
+            throw new IllegalArgumentException("Warning and critical colors cannot be identical");
+        }
+    }
+
+    private void validateColorField(Map<String, Object> map, String fieldName, boolean required) {
+        Object val = map.get(fieldName);
+        if (val == null) {
+            if (required) {
+                throw new IllegalArgumentException(fieldName + " is required");
+            }
+            return;
+        }
+        String color = val.toString().trim();
+        if (!HEX_COLOR_PATTERN.matcher(color).matches()) {
+            throw new IllegalArgumentException("Invalid hex color format for " + fieldName + ": " + color);
+        }
+    }
+
     @Transactional
     public ConfigurationSaveResponseDTO saveSection(String section, ConfigurationSaveRequestDTO request, UUID userId) {
+        validateSection(section, request);
+
         SystemConfiguration config = configRepository.findBySection(section)
                 .orElse(SystemConfiguration.builder()
                         .section(section)

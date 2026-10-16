@@ -1,6 +1,7 @@
 package com.nerdc.elephantfence.backend.common.security;
 
 import com.nerdc.elephantfence.backend.configuration.repository.UserSessionRepository;
+import com.nerdc.elephantfence.backend.configuration.service.ConfigurationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 
@@ -36,13 +37,14 @@ public class SecurityConfiguration {
     private final CustomUserDetailsService customUserDetailsService;
     private final UserSessionRepository sessionRepository;
     private final ReadOnlyModeFilter readOnlyModeFilter;
+    private final ConfigurationService configurationService;
 
     @Value("${app.cors.allowed-origins:http://localhost,http://localhost:80,http://localhost:4200,http://localhost:8080,http://127.0.0.1,http://127.0.0.1:80}")
     private String allowedOrigins;
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter(tokenProvider, customUserDetailsService, sessionRepository);
+        return new JwtAuthenticationFilter(tokenProvider, customUserDetailsService, sessionRepository, configurationService);
     }
 
     @Bean

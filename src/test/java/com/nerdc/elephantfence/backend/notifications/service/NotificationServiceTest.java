@@ -50,6 +50,8 @@ class NotificationServiceTest {
     private EmailService emailService;
     @Mock
     private SmsService smsService;
+    @Mock
+    private com.nerdc.elephantfence.backend.configuration.repository.SystemConfigurationRepository configurationRepository;
 
     @InjectMocks
     private NotificationService notificationService;
@@ -141,6 +143,53 @@ class NotificationServiceTest {
 
         verify(userNotificationRepository).save(notification);
         verify(webSocketHandler).broadcast(eq(admin.getId()),any(String.class));
+    }
+
+    @Test
+    void sendNotification_shouldBeSuppressedWhenCategoryDisabled() {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ObjectNode configNode = mapper.createObjectNode();
+        configNode.put("criticalAlertsEnabled", false);
+        com.nerdc.elephantfence.backend.configuration.entity.SystemConfiguration config = com.nerdc.elephantfence.backend.configuration.entity.SystemConfiguration.builder()
+                .section("notifications").configData(configNode).build();
+        when(configurationRepository.findBySection("notifications")).thenReturn(Optional.of(config));
+
+        notificationService.sendNotification(notification);
+
+        verify(userNotificationRepository, never()).save(any());
+        verify(webSocketHandler, never()).broadcast(any(), any());
+    }
+
+    @Test
+    void sendNotification_doesNotSaveWhenInAppDisabled() {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ObjectNode configNode = mapper.createObjectNode();
+        configNode.put("inAppEnabled", false);
+        configNode.put("websocketEnabled", true);
+        com.nerdc.elephantfence.backend.configuration.entity.SystemConfiguration config = com.nerdc.elephantfence.backend.configuration.entity.SystemConfiguration.builder()
+                .section("notifications").configData(configNode).build();
+        when(configurationRepository.findBySection("notifications")).thenReturn(Optional.of(config));
+
+        notificationService.sendNotification(notification);
+
+        verify(userNotificationRepository, never()).save(any());
+        verify(webSocketHandler).broadcast(eq(admin.getId()), any(String.class));
+    }
+
+    @Test
+    void sendNotification_doesNotBroadcastWhenWebsocketDisabled() {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ObjectNode configNode = mapper.createObjectNode();
+        configNode.put("inAppEnabled", true);
+        configNode.put("websocketEnabled", false);
+        com.nerdc.elephantfence.backend.configuration.entity.SystemConfiguration config = com.nerdc.elephantfence.backend.configuration.entity.SystemConfiguration.builder()
+                .section("notifications").configData(configNode).build();
+        when(configurationRepository.findBySection("notifications")).thenReturn(Optional.of(config));
+
+        notificationService.sendNotification(notification);
+
+        verify(userNotificationRepository).save(notification);
+        verify(webSocketHandler, never()).broadcast(any(), any());
     }
 }
 

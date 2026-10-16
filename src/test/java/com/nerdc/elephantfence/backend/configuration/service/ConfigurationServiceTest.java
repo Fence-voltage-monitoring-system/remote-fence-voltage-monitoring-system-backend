@@ -26,6 +26,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -199,5 +200,94 @@ class ConfigurationServiceTest {
 
         assertThat(count).isEqualTo(3);
         verify(sessionRepository).revokeAllUserSessions(userId);
+    }
+
+    @Test
+    void saveSection_map_shouldSucceedWithValidValues() {
+        when(userRepository.findById(adminUser.getId())).thenReturn(Optional.of(adminUser));
+        when(configRepository.findBySection("map")).thenReturn(Optional.empty());
+        when(configRepository.saveAndFlush(any(SystemConfiguration.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, Object> mapValues = Map.of(
+                "defaultLatitude", 7.8731,
+                "defaultLongitude", 80.7718,
+                "defaultZoom", 8,
+                "healthyColor", "#4ADE80",
+                "warningColor", "#FBBF24",
+                "criticalColor", "#F87171"
+        );
+        ConfigurationSaveRequestDTO request = new ConfigurationSaveRequestDTO(mapValues, "Update map view defaults");
+
+        ConfigurationSaveResponseDTO response = configurationService.saveSection("map", request, adminUser.getId());
+
+        assertThat(response.getSection()).isEqualTo("map");
+        assertThat(response.getValue().get("defaultLatitude")).isEqualTo(7.8731);
+        assertThat(response.getValue().get("healthyColor")).isEqualTo("#4ADE80");
+    }
+
+    @Test
+    void saveSection_map_shouldFailWithOutOfRangeCoordinates() {
+        Map<String, Object> invalidLatValues = Map.of(
+                "defaultLatitude", 15.0, // out of Sri Lanka bounds
+                "defaultLongitude", 80.7718,
+                "defaultZoom", 7,
+                "healthyColor", "#4ADE80",
+                "warningColor", "#FBBF24",
+                "criticalColor", "#F87171"
+        );
+        ConfigurationSaveRequestDTO request = new ConfigurationSaveRequestDTO(invalidLatValues, "Invalid map");
+
+        assertThatThrownBy(() -> configurationService.saveSection("map", request, adminUser.getId()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("territory");
+    }
+
+    @Test
+    void saveSection_map_shouldFailWithInvalidColorHex() {
+        Map<String, Object> invalidColorValues = Map.of(
+                "defaultLatitude", 7.8731,
+                "defaultLongitude", 80.7718,
+                "defaultZoom", 7,
+                "healthyColor", "not-a-hex",
+                "warningColor", "#FBBF24",
+                "criticalColor", "#F87171"
+        );
+        ConfigurationSaveRequestDTO request = new ConfigurationSaveRequestDTO(invalidColorValues, "Invalid color");
+
+        assertThatThrownBy(() -> configurationService.saveSection("map", request, adminUser.getId()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid hex color format");
+    }
+
+    @Test
+    void saveSection_map_shouldFailWithIdenticalColors() {
+        Map<String, Object> duplicateColorValues = Map.of(
+                "defaultLatitude", 7.8731,
+                "defaultLongitude", 80.7718,
+                "defaultZoom", 7,
+                "healthyColor", "#4ADE80",
+                "warningColor", "#4ADE80", // same as healthy
+                "criticalColor", "#F87171"
+        );
+        ConfigurationSaveRequestDTO request = new ConfigurationSaveRequestDTO(duplicateColorValues, "Duplicate color");
+
+        assertThatThrownBy(() -> configurationService.saveSection("map", request, adminUser.getId()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("identical");
+    }
+
+    @Test
+    void getMapConfiguration_shouldReturnDefaults_whenDbEmpty() {
+        when(configRepository.findBySection("map")).thenReturn(Optional.empty());
+        when(configRepository.saveAndFlush(any(SystemConfiguration.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ConfigurationService.MapConfiguration config = configurationService.getMapConfiguration();
+
+        assertThat(config.defaultLatitude()).isEqualTo(7.8731);
+        assertThat(config.defaultLongitude()).isEqualTo(80.7718);
+        assertThat(config.defaultZoom()).isEqualTo(7);
+        assertThat(config.healthyColor()).isEqualTo("#4ADE80");
+        assertThat(config.warningColor()).isEqualTo("#FBBF24");
+        assertThat(config.criticalColor()).isEqualTo("#F87171");
     }
 }

@@ -9,6 +9,8 @@ import com.nerdc.elephantfence.backend.alerts.repository.AlertEventRepository;
 import com.nerdc.elephantfence.backend.alerts.repository.AlertRepository;
 import com.nerdc.elephantfence.backend.fences.entity.Fence;
 import com.nerdc.elephantfence.backend.fences.repository.FenceRepository;
+import com.nerdc.elephantfence.backend.gateways.entity.Gateway;
+import com.nerdc.elephantfence.backend.gateways.service.GatewayService;
 import com.nerdc.elephantfence.backend.locations.entity.District;
 import com.nerdc.elephantfence.backend.locations.entity.Province;
 import com.nerdc.elephantfence.backend.locations.repository.DistrictRepository;
@@ -51,6 +53,7 @@ public class AlertService {
     private final AlertRules rules;
     private final com.nerdc.elephantfence.backend.notifications.service.NotificationService notifications;
     private final AlertWebSocketHandler webSocketHandler;
+    private final Map<String, Integer> abnormalReadingCounts = new java.util.concurrent.ConcurrentHashMap<>();
 
 
     @Transactional(readOnly=true)
@@ -163,12 +166,12 @@ public class AlertService {
     }
     @Transactional public AlertResponseDTO acknowledge(Long id){Alert a=actionable(id,"ACKNOWLEDGE");a.setStatus("ACKNOWLEDGED");a.setAcknowledgedByUserId(getCurrentUser().getId());a.setAcknowledgedAt(OffsetDateTime.now());return finish(a,"ACKNOWLEDGED","Incident acknowledged.");}
     @Transactional public AlertResponseDTO acceptAssignment(Long id){Alert a=actionable(id,"ACCEPT");a.setAssignmentStatus("ACCEPTED");a.setStatus("ASSIGNED");a.setAcceptanceDeadline(null);if(a.getAcknowledgedAt()==null){a.setAcknowledgedAt(OffsetDateTime.now());a.setAcknowledgedByUserId(getCurrentUser().getId());}return finish(a,"ASSIGNMENT_ACCEPTED","Assignment accepted.");}
-    @Transactional public AlertResponseDTO declineAssignment(Long id,DeclineAssignmentRequestDTO dto){Alert a=actionable(id,"DECLINE");a.setAssignmentStatus("DECLINED");a.setAcceptanceDeadline(null);createEvent(id,"ASSIGNMENT_DECLINED",getCurrentUser().getFullName(),dto.getReason());escalate(a,"System");publish(a,"Assignment declined: "+dto.getReason());return toResponse(a);}
+    @Transactional public AlertResponseDTO declineAssignment(Long id,DeclineAssignmentRequestDTO dto){Alert a=actionable(id,"DECLINE");a.setAssignmentStatus("DECLINED");a.setAcceptanceDeadline(null);createEvent(id,"ASSIGNMENT_DECLINED",getCurrentUser().getFullName(),dto.getReason());escalate(a,"System");publish(a,"Assignment declined: "+dto.getReason(),"MAINTENANCE");return toResponse(a);}
     @Transactional public AlertResponseDTO reassignMaintenance(Long id,ReassignAlertRequestDTO dto){
         Alert a=actionable(id,"ASSIGN");
         User staff=candidates(a).stream().filter(u->u.getId().equals(dto.getStaffId())).findFirst().orElseThrow(()->new IllegalArgumentException("Select an active maintenance user responsible for this fence."));
         UUID previous=a.getAssigneeUserId();a.setAttemptedAssignees("");assign(a,staff,"ADMIN_ASSIGNMENT");
-        if(previous!=null&&!previous.equals(staff.getId()))notifyUser(a,previous,"You have been removed from this incident assignment.");
+        if(previous!=null&&!previous.equals(staff.getId()))notifyUser(a,previous,"You have been removed from this incident assignment.","MAINTENANCE");
         return finish(a,"REASSIGNED","Assigned to "+staff.getFullName()+". Reason: "+dto.getReason());
     }
     private void assign(Alert a,User user,String source){
@@ -176,7 +179,7 @@ public class AlertService {
         a.setAssignedAt(OffsetDateTime.now());a.setAcceptanceDeadline(OffsetDateTime.now().plusMinutes(rules.number("maintenanceAcceptanceTimeoutMinutes",15)));
         a.setAttemptedAssignees((a.getAttemptedAssignees()==null?"":a.getAttemptedAssignees())+user.getId()+",");
     }
-    @Transactional public AlertResponseDTO escalateAssignment(Long id){Alert a=actionable(id,"ESCALATE");escalate(a,getCurrentUser().getFullName());publish(a,"Assignment escalated.");return toResponse(a);}
+    @Transactional public AlertResponseDTO escalateAssignment(Long id){Alert a=actionable(id,"ESCALATE");escalate(a,getCurrentUser().getFullName());publish(a,"Assignment escalated.","MAINTENANCE");return toResponse(a);}
     private void escalate(Alert a,String actor){
         User backup=null;
         if(rules.enabled("escalationEnabled",true)&&a.getFenceId()!=null){
@@ -190,9 +193,10 @@ public class AlertService {
         createEvent(a.getId(),"ESCALATED",actor,backup==null?"Administrator reassignment required.":"Assigned to backup "+backup.getFullName());
     }
     @Transactional public void expireAssignment(Long id){
+        if (!rules.enabled("escalationEnabled", true)) return;
         Alert a=findAlert(id);
         if("AWAITING_ACCEPTANCE".equals(a.getAssignmentStatus())&&a.getAcceptanceDeadline()!=null&&!a.getAcceptanceDeadline().isAfter(OffsetDateTime.now())&&!"RESOLVED".equals(a.getStatus())){
-            escalate(a,"System");publish(a,"Assignment acceptance deadline expired.");
+            escalate(a,"System");publish(a,"Assignment acceptance deadline expired.","MAINTENANCE");
         }
     }
     @Transactional public AlertResponseDTO startWork(Long id){Alert a=actionable(id,"START");a.setStatus("IN_PROGRESS");return finish(a,"WORK_STARTED","Maintenance work started.");}
@@ -211,7 +215,12 @@ public class AlertService {
         alertCommentRepository.save(AlertComment.builder().alertId(id).userId(actor.getId()).userName(actor.getFullName()).comment(dto.getComment().trim()).build());
         return finish(a,"COMMENT_ADDED",dto.getComment().trim());
     }
-    private AlertResponseDTO finish(Alert a,String type,String detail){createEvent(a.getId(),type,getCurrentUser().getFullName(),detail);publish(a,detail);return toResponse(a);}
+    private AlertResponseDTO finish(Alert a,String type,String detail){
+        createEvent(a.getId(),type,getCurrentUser().getFullName(),detail);
+        String category = ("ACKNOWLEDGED".equals(type) || "MANUALLY_RESOLVED".equals(type)) ? a.getSeverity() : "MAINTENANCE";
+        publish(a,detail,category);
+        return toResponse(a);
+    }
     private Alert findAlert(Long id){return alertRepository.findById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Incident not found."));}
     private User getCurrentUser(){return access.currentUser();}
     private void createEvent(Long id,String type,String actor,String detail){alertEventRepository.save(AlertEvent.builder().alertId(id).eventType(type).actorName(actor).details(detail).build());}
@@ -225,20 +234,381 @@ public class AlertService {
         return MaintenanceStaffOptionDTO.builder().id(user.getId()).name(user.getFullName()).email(user.getEmail()).responsibility(responsibility).available(user.isEnabled()).build();
     }
     private void notifyUser(Alert a,UUID recipient,String message){
-        if(!rules.notifications())return;
-        notifications.sendNotification(com.nerdc.elephantfence.backend.notifications.entity.UserNotification.builder()
-            .userId(recipient).code("NTF-"+UUID.randomUUID()).title(a.getTitle()).message(message).category(a.getSeverity()).fenceId(a.getFenceId()).sectionId(a.getSectionId()).relatedAlertCode(a.getCode()).channels("IN_APP").build());
+        notifyUser(a, recipient, message, a.getSeverity());
     }
+
+    private void notifyUser(Alert a,UUID recipient,String message,String category){
+        if(!rules.categoryEnabled(category))return;
+        if(!rules.notifications())return;
+        boolean inApp = rules.inAppEnabled();
+        boolean sms = rules.smsEnabled();
+        if (!inApp && !sms) return;
+
+        List<String> activeChannels = new ArrayList<>();
+        if (inApp) activeChannels.add("IN_APP");
+        if (sms) activeChannels.add("SMS");
+        String channels = String.join(",", activeChannels);
+
+        notifications.sendNotification(com.nerdc.elephantfence.backend.notifications.entity.UserNotification.builder()
+            .userId(recipient).code("NTF-"+UUID.randomUUID()).title(a.getTitle()).message(message).category(category != null ? category : a.getSeverity()).fenceId(a.getFenceId()).sectionId(a.getSectionId()).relatedAlertCode(a.getCode()).channels(channels).build());
+    }
+
     private void publish(Alert a,String message){
+        publish(a, message, a.getSeverity());
+    }
+
+    private void publish(Alert a,String message,String category){
         alertRepository.saveAndFlush(a);
         Set<UUID> recipients=new HashSet<>();
-        if(a.getAssigneeUserId()!=null)recipients.add(a.getAssigneeUserId());
-        for(var role:List.of(com.nerdc.elephantfence.backend.users.entity.Role.SUPER_ADMIN,com.nerdc.elephantfence.backend.users.entity.Role.REGIONAL_ADMIN,com.nerdc.elephantfence.backend.users.entity.Role.FIELD_ADMIN))
-            for(User u:userRepository.findByRole(role))if(u.isEnabled()&&access.inScope(u,a.getProvinceId(),a.getDistrictId()))recipients.add(u.getId());
-        recipients.forEach(id->notifyUser(a,id,message));
-        if(TransactionSynchronizationManager.isSynchronizationActive())TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){@Override public void afterCommit(){webSocketHandler.broadcast("");}});
-        else webSocketHandler.broadcast("");
+        if(rules.enabled("notifyMaintenance", true)) {
+            if (a.getAssigneeUserId() != null) {
+                recipients.add(a.getAssigneeUserId());
+            }
+            if (a.getFenceId() != null) {
+                fenceRepository.findById(a.getFenceId()).ifPresent(f -> {
+                    if (f.getPrimaryMaintenanceUser() != null && f.getPrimaryMaintenanceUser().isEnabled()) {
+                        recipients.add(f.getPrimaryMaintenanceUser().getId());
+                    }
+                    if (f.getBackupMaintenanceUsers() != null) {
+                        f.getBackupMaintenanceUsers().stream()
+                            .filter(User::isEnabled)
+                            .forEach(u -> recipients.add(u.getId()));
+                    }
+                });
+            }
+        }
+        List<com.nerdc.elephantfence.backend.users.entity.Role> targetRoles = new ArrayList<>();
+        if (rules.enabled("notifySuperAdmins", true)) targetRoles.add(com.nerdc.elephantfence.backend.users.entity.Role.SUPER_ADMIN);
+        if (rules.enabled("notifyRegionalAdmins", true)) targetRoles.add(com.nerdc.elephantfence.backend.users.entity.Role.REGIONAL_ADMIN);
+        if (rules.enabled("notifyFieldAdmins", true)) targetRoles.add(com.nerdc.elephantfence.backend.users.entity.Role.FIELD_ADMIN);
+
+        for(var role: targetRoles) {
+            for(User u:userRepository.findByRole(role)) {
+                if(u.isEnabled()&&access.inScope(u,a.getProvinceId(),a.getDistrictId())) {
+                    recipients.add(u.getId());
+                }
+            }
+        }
+        recipients.forEach(id->notifyUser(a,id,message,category));
+        if (rules.websocketEnabled()) {
+            if(TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){
+                    @Override public void afterCommit(){webSocketHandler.broadcast("");}
+                });
+            } else {
+                webSocketHandler.broadcast("");
+            }
+        }
     }
+
+    @Transactional
+    public void processTelemetry(Section section, Fence fence, double voltage, Integer battery) {
+        processTelemetry(section, fence, voltage, battery, null);
+    }
+
+    @Transactional
+    public void processTelemetry(Section section, Fence fence, double voltage, Integer battery, Integer solarCharging) {
+        if (section == null || fence == null || section.getId() == null) return;
+
+        double healthyThreshold = rules.voltage("healthyKv", 5.0);
+        double warningThreshold = rules.voltage("warningKv", 3.0);
+        double criticalThreshold = rules.voltage("criticalKv", 1.5);
+        double lowBatteryThreshold = rules.voltage("lowBatteryPercent", 20.0);
+        double criticalBatteryThreshold = rules.criticalBatteryPercent();
+
+        // 1. Check auto-recovery for active alerts on this section
+        if (rules.autoResolve()) {
+            boolean isHealthy = voltage >= healthyThreshold && (battery == null || battery >= lowBatteryThreshold);
+            List<Alert> activeAlerts = alertRepository.findBySectionIdAndStatusNot(section.getId(), "RESOLVED");
+            for (Alert a : activeAlerts) {
+                if (List.of("WIRE_BREAK", "LOW_VOLTAGE", "VOLTAGE_DROP", "LOW_BATTERY").contains(a.getType())) {
+                    if (isHealthy) {
+                        int count = (a.getHealthyReadingsReceived() != null ? a.getHealthyReadingsReceived() : 0) + 1;
+                        a.setHealthyReadingsReceived(count);
+                        if (count >= rules.healthyReadingsRequired()) {
+                            a.setStatus("RESOLVED");
+                            a.setResolvedAt(OffsetDateTime.now());
+                            a.setResolutionType("AUTO_RECOVERY");
+                            a.setResolutionSummary("Auto-recovered: " + rules.healthyReadingsRequired() + " consecutive healthy readings (" + voltage + " kV).");
+                            if (a.getAssigneeUserId() != null) a.setAssignmentStatus("COMPLETED");
+                            alertRepository.saveAndFlush(a);
+                            createEvent(a.getId(), "ALERT_RESOLVED", "System", a.getResolutionSummary());
+                            publish(a, "Incident auto-resolved: " + a.getTitle());
+                        } else {
+                            alertRepository.saveAndFlush(a);
+                        }
+                    } else if (a.getHealthyReadingsReceived() != null && a.getHealthyReadingsReceived() > 0) {
+                        a.setHealthyReadingsReceived(0);
+                        alertRepository.saveAndFlush(a);
+                    }
+                } else if ("SOLAR_FAILURE".equals(a.getType())) {
+                    if (solarCharging != null && solarCharging > 0) {
+                        int count = (a.getHealthyReadingsReceived() != null ? a.getHealthyReadingsReceived() : 0) + 1;
+                        a.setHealthyReadingsReceived(count);
+                        if (count >= rules.healthyReadingsRequired()) {
+                            a.setStatus("RESOLVED");
+                            a.setResolvedAt(OffsetDateTime.now());
+                            a.setResolutionType("AUTO_RECOVERY");
+                            a.setResolutionSummary("Auto-recovered: Solar charging input restored (" + solarCharging + "%).");
+                            if (a.getAssigneeUserId() != null) a.setAssignmentStatus("COMPLETED");
+                            alertRepository.saveAndFlush(a);
+                            createEvent(a.getId(), "ALERT_RESOLVED", "System", a.getResolutionSummary());
+                            publish(a, "Incident auto-resolved: " + a.getTitle());
+                        } else {
+                            alertRepository.saveAndFlush(a);
+                        }
+                    } else if (solarCharging != null && solarCharging <= 0 && a.getHealthyReadingsReceived() != null && a.getHealthyReadingsReceived() > 0) {
+                        a.setHealthyReadingsReceived(0);
+                        alertRepository.saveAndFlush(a);
+                    }
+                }
+            }
+        }
+
+        // 2. Automated Alert Detection
+        // Wire break (Urgent - immediate)
+        if (rules.wireBreakEnabled() && voltage <= 0.05) {
+            abnormalReadingCounts.remove(section.getId() + ":LOW_VOLTAGE");
+            if (canTriggerAlert(section.getId(), "WIRE_BREAK")) {
+                createAutomatedAlert(section, fence, "WIRE_BREAK", "CRITICAL",
+                        "Wire break detected on section " + section.getCode() + " (0.0 kV)",
+                        BigDecimal.valueOf(voltage), BigDecimal.valueOf(criticalThreshold));
+                return;
+            }
+        }
+
+        // Critical voltage (Urgent - immediate)
+        if (rules.criticalVoltageEnabled() && voltage > 0.05 && voltage < criticalThreshold) {
+            abnormalReadingCounts.remove(section.getId() + ":LOW_VOLTAGE");
+            if (canTriggerAlert(section.getId(), "LOW_VOLTAGE")) {
+                createAutomatedAlert(section, fence, "LOW_VOLTAGE", "CRITICAL",
+                        "Critical low voltage on section " + section.getCode() + " (" + voltage + " kV)",
+                        BigDecimal.valueOf(voltage), BigDecimal.valueOf(criticalThreshold));
+                return;
+            }
+        }
+
+        // Low voltage (Warning - requires abnormalReadingsRequired consecutive readings)
+        if (rules.lowVoltageEnabled() && voltage >= criticalThreshold && voltage < warningThreshold) {
+            int count = abnormalReadingCounts.compute(section.getId() + ":LOW_VOLTAGE", (k, cur) -> cur == null ? 1 : cur + 1);
+            if (count >= rules.abnormalReadingsRequired()) {
+                abnormalReadingCounts.remove(section.getId() + ":LOW_VOLTAGE");
+                if (canTriggerAlert(section.getId(), "LOW_VOLTAGE")) {
+                    createAutomatedAlert(section, fence, "LOW_VOLTAGE", "WARNING",
+                            "Low voltage warning on section " + section.getCode() + " (" + voltage + " kV)",
+                            BigDecimal.valueOf(voltage), BigDecimal.valueOf(warningThreshold));
+                    return;
+                }
+            }
+        } else if (voltage >= warningThreshold) {
+            abnormalReadingCounts.remove(section.getId() + ":LOW_VOLTAGE");
+        }
+
+        // Critical battery (Urgent - immediate)
+        if (rules.criticalBatteryEnabled() && battery != null && battery <= criticalBatteryThreshold) {
+            abnormalReadingCounts.remove(section.getId() + ":LOW_BATTERY");
+            if (canTriggerAlert(section.getId(), "LOW_BATTERY")) {
+                createAutomatedAlert(section, fence, "LOW_BATTERY", "CRITICAL",
+                        "Critical battery on section " + section.getCode() + " (" + battery + "%)",
+                        BigDecimal.valueOf(voltage), BigDecimal.valueOf(criticalBatteryThreshold));
+                return;
+            }
+        }
+
+        // Low battery (Warning - requires abnormalReadingsRequired consecutive readings)
+        if (rules.lowBatteryEnabled() && battery != null && battery > criticalBatteryThreshold && battery < lowBatteryThreshold) {
+            int count = abnormalReadingCounts.compute(section.getId() + ":LOW_BATTERY", (k, cur) -> cur == null ? 1 : cur + 1);
+            if (count >= rules.abnormalReadingsRequired()) {
+                abnormalReadingCounts.remove(section.getId() + ":LOW_BATTERY");
+                if (canTriggerAlert(section.getId(), "LOW_BATTERY")) {
+                    createAutomatedAlert(section, fence, "LOW_BATTERY", "WARNING",
+                            "Low battery warning on section " + section.getCode() + " (" + battery + "%)",
+                            BigDecimal.valueOf(voltage), BigDecimal.valueOf(lowBatteryThreshold));
+                    return;
+                }
+            }
+        } else if (battery != null && battery >= lowBatteryThreshold) {
+            abnormalReadingCounts.remove(section.getId() + ":LOW_BATTERY");
+        }
+
+        // Solar charging failure (Warning - requires abnormalReadingsRequired consecutive readings)
+        if (rules.solarFailureEnabled() && solarCharging != null && solarCharging <= 0) {
+            int count = abnormalReadingCounts.compute(section.getId() + ":SOLAR_FAILURE", (k, cur) -> cur == null ? 1 : cur + 1);
+            if (count >= rules.abnormalReadingsRequired()) {
+                abnormalReadingCounts.remove(section.getId() + ":SOLAR_FAILURE");
+                if (canTriggerAlert(section.getId(), "SOLAR_FAILURE")) {
+                    createAutomatedAlert(section, fence, "SOLAR_FAILURE", "WARNING",
+                            "Solar charging failure on section " + section.getCode() + " (0% charging input)",
+                            BigDecimal.valueOf(voltage), BigDecimal.ZERO);
+                }
+            }
+        } else if (solarCharging != null && solarCharging > 0) {
+            abnormalReadingCounts.remove(section.getId() + ":SOLAR_FAILURE");
+        }
+    }
+
+    @Transactional
+    public void checkGatewaysOffline(List<Gateway> gateways, GatewayService gatewayService) {
+        if (gateways == null || gatewayService == null) return;
+        for (Gateway gateway : gateways) {
+            String status = gatewayService.computeGatewayStatus(gateway);
+            processGatewayStatus(gateway, status);
+        }
+    }
+
+    @Transactional
+    public void processGatewayStatus(Gateway gateway, String computedStatus) {
+        if (gateway == null) return;
+        boolean isOffline = "offline".equalsIgnoreCase(computedStatus);
+        boolean isOnline = "online".equalsIgnoreCase(computedStatus);
+
+        if (isOffline && rules.gatewayOfflineEnabled()) {
+            Set<Fence> fences = gateway.getFences();
+            if (fences != null && !fences.isEmpty()) {
+                for (Fence fence : fences) {
+                    if (fence != null && fence.getId() != null) {
+                        triggerGatewayOfflineAlert(gateway, fence);
+                    }
+                }
+            } else {
+                triggerGatewayOfflineAlert(gateway, null);
+            }
+        } else if (isOnline && rules.autoResolve()) {
+            Set<Fence> fences = gateway.getFences();
+            if (fences != null && !fences.isEmpty()) {
+                for (Fence fence : fences) {
+                    if (fence != null && fence.getId() != null) {
+                        resolveGatewayOfflineAlert(gateway, fence);
+                    }
+                }
+            } else {
+                resolveGatewayOfflineAlert(gateway, null);
+            }
+        }
+    }
+
+    private void triggerGatewayOfflineAlert(Gateway gateway, Fence fence) {
+        Long fenceId = fence != null ? fence.getId() : null;
+        if (fenceId != null) {
+            if (alertRepository.existsByFenceIdAndTypeAndStatusNot(fenceId, "DEVICE_OFFLINE", "RESOLVED")) {
+                return;
+            }
+            int cooldown = rules.cooldownMinutes();
+            if (cooldown > 0) {
+                var recent = alertRepository.findTop1ByFenceIdAndTypeAndStatusOrderByResolvedAtDesc(fenceId, "DEVICE_OFFLINE", "RESOLVED");
+                if (recent.isPresent() && recent.get().getResolvedAt() != null) {
+                    if (recent.get().getResolvedAt().isAfter(OffsetDateTime.now().minusMinutes(cooldown))) {
+                        return;
+                    }
+                }
+            }
+        } else {
+            if (alertRepository.existsByDeviceIdAndTypeAndStatusNot(gateway.getId(), "DEVICE_OFFLINE", "RESOLVED")) {
+                return;
+            }
+        }
+
+        Alert a = Alert.builder()
+                .code("ALT-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase())
+                .title("Gateway offline: " + gateway.getName() + " (" + gateway.getSerial() + ")")
+                .type("DEVICE_OFFLINE")
+                .severity("CRITICAL")
+                .deviceId(gateway.getId())
+                .fenceId(fenceId)
+                .provinceId(fence != null && fence.getProvince() != null ? fence.getProvince().getId() : null)
+                .districtId(fence != null && fence.getDistrict() != null ? fence.getDistrict().getId() : null)
+                .status("UNACKNOWLEDGED")
+                .assignmentStatus("UNASSIGNED")
+                .build();
+        a = alertRepository.saveAndFlush(a);
+        createEvent(a.getId(), "ALERT_CREATED", "System", a.getTitle());
+        if (fence != null) {
+            User primary = fence.getPrimaryMaintenanceUser();
+            if (primary != null && primary.isEnabled()) {
+                assign(a, primary, "AUTO_PRIMARY");
+                createEvent(a.getId(), "AUTO_ASSIGNED", "System", "Assigned to " + primary.getFullName());
+            }
+        }
+        publish(a, "Critical gateway offline detected: " + a.getTitle());
+    }
+
+    private void resolveGatewayOfflineAlert(Gateway gateway, Fence fence) {
+        Long fenceId = fence != null ? fence.getId() : null;
+        List<Alert> activeAlerts;
+        if (fenceId != null) {
+            activeAlerts = alertRepository.findByFenceIdAndTypeAndStatusNot(fenceId, "DEVICE_OFFLINE", "RESOLVED");
+        } else {
+            activeAlerts = alertRepository.findByDeviceIdAndTypeAndStatusNot(gateway.getId(), "DEVICE_OFFLINE", "RESOLVED");
+        }
+
+        for (Alert a : activeAlerts) {
+            a.setStatus("RESOLVED");
+            a.setResolvedAt(OffsetDateTime.now());
+            a.setResolutionType("AUTO_RECOVERY");
+            a.setResolutionSummary("Auto-recovered: Gateway " + gateway.getName() + " is reporting online.");
+            if (a.getAssigneeUserId() != null) a.setAssignmentStatus("COMPLETED");
+            alertRepository.saveAndFlush(a);
+            createEvent(a.getId(), "ALERT_RESOLVED", "System", a.getResolutionSummary());
+            publish(a, "Incident auto-resolved: " + a.getTitle());
+        }
+    }
+
+    private boolean canTriggerAlert(Long sectionId, String type) {
+        if (alertRepository.existsBySectionIdAndTypeAndStatusNot(sectionId, type, "RESOLVED")) {
+            return false;
+        }
+        int cooldown = rules.cooldownMinutes();
+        if (cooldown > 0) {
+            var recent = alertRepository.findTop1BySectionIdAndTypeAndStatusOrderByResolvedAtDesc(sectionId, type, "RESOLVED");
+            if (recent.isPresent() && recent.get().getResolvedAt() != null) {
+                if (recent.get().getResolvedAt().isAfter(OffsetDateTime.now().minusMinutes(cooldown))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private void createAutomatedAlert(Section section, Fence fence, String type, String severity, String title, BigDecimal detected, BigDecimal threshold) {
+        Alert a = Alert.builder()
+                .code("ALT-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase())
+                .title(title)
+                .type(type)
+                .severity(severity)
+                .fenceId(fence.getId())
+                .provinceId(fence.getProvince() != null ? fence.getProvince().getId() : null)
+                .districtId(fence.getDistrict() != null ? fence.getDistrict().getId() : null)
+                .sectionId(section.getId())
+                .detectedVoltageKv(detected)
+                .thresholdVoltageKv(threshold)
+                .status("UNACKNOWLEDGED")
+                .assignmentStatus("UNASSIGNED")
+                .build();
+        a = alertRepository.saveAndFlush(a);
+        createEvent(a.getId(), "ALERT_CREATED", "System", title);
+        User primary = fence.getPrimaryMaintenanceUser();
+        if (primary != null && primary.isEnabled()) {
+            assign(a, primary, "AUTO_PRIMARY");
+            createEvent(a.getId(), "AUTO_ASSIGNED", "System", "Assigned to " + primary.getFullName());
+        }
+        publish(a, "Incident detected: " + a.getTitle());
+    }
+
+    @Transactional
+    public void expireUnacknowledged() {
+        if (!rules.enabled("escalationEnabled", true)) return;
+        int timeout = rules.number("acknowledgementTimeoutMinutes", 10);
+        OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(timeout);
+        for (Alert a : alertRepository.findByStatusAndCreatedAtBefore("UNACKNOWLEDGED", cutoff)) {
+            boolean alreadyLogged = alertEventRepository.findByAlertIdOrderByOccurredAtDesc(a.getId()).stream()
+                    .anyMatch(e -> "ESCALATED".equals(e.getEventType()) && e.getDetails() != null && e.getDetails().contains("Acknowledgement deadline"));
+            if (!alreadyLogged) {
+                createEvent(a.getId(), "ESCALATED", "System", "Acknowledgement deadline expired (> " + timeout + " min). Administrator attention required.");
+                publish(a, "Unacknowledged incident requires urgent administrator attention: " + a.getTitle());
+            }
+        }
+    }
+
     private String getEventLabel(String type, String actor) {
         if ("ALERT_CREATED".equals(type)) return "Alert detected";
         if ("NOTIFICATION_SENT".equals(type)) return "Notification delivered";
@@ -252,6 +622,7 @@ public class AlertService {
         if ("COMMENT_ADDED".equals(type)) return "Investigation comment added by " + actor;
         if ("WORK_COMPLETED".equals(type)) return "Maintenance work completed by " + actor;
         if ("MANUALLY_RESOLVED".equals(type)) return "Alert manually resolved by " + actor;
+        if ("ALERT_RESOLVED".equals(type) || "AUTO_RECOVERED".equals(type)) return "Incident recovered and resolved";
         return type;
     }
 

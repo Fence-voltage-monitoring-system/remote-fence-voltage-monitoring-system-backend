@@ -261,7 +261,7 @@ public class GatewayService {
                 .build();
     }
 
-    private String computeGatewayStatus(Gateway gateway) {
+    public String computeGatewayStatus(Gateway gateway) {
         if (!gateway.isEnabled()) {
             return "offline";
         }

@@ -1,5 +1,7 @@
 package com.nerdc.elephantfence.backend.users.service;
 
+import com.nerdc.elephantfence.backend.configuration.repository.UserSessionRepository;
+import com.nerdc.elephantfence.backend.configuration.service.ConfigurationService;
 import com.nerdc.elephantfence.backend.locations.entity.District;
 import com.nerdc.elephantfence.backend.locations.entity.Province;
 import com.nerdc.elephantfence.backend.locations.repository.DistrictRepository;
@@ -15,6 +17,7 @@ import com.nerdc.elephantfence.backend.users.entity.User;
 import com.nerdc.elephantfence.backend.users.repository.UserRepository;
 import com.nerdc.elephantfence.backend.common.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,6 +29,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
 
     private final UserRepository userRepository;
@@ -33,6 +37,8 @@ public class UserService {
     private final DistrictRepository districtRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserNotificationPreferencesRepository notificationPreferencesRepository;
+    private final UserSessionRepository sessionRepository;
+    private final ConfigurationService configurationService;
 
     @Transactional(readOnly = true)
     public List<UserResponseDTO> getAllUsers() {
@@ -90,6 +96,11 @@ public class UserService {
 
         validateTargetUserManagementAccess(user);
 
+        boolean roleChanged = dto.getRole() != null && dto.getRole() != user.getRole();
+        boolean scopeChanged = (dto.getProvinceIds() != null && !dto.getProvinceIds().isEmpty())
+                || (dto.getDistrictIds() != null && !dto.getDistrictIds().isEmpty());
+        boolean accountDeactivated = dto.getEnabled() != null && !dto.getEnabled() && user.isEnabled();
+
         if (dto.getFullName() != null) user.setFullName(dto.getFullName());
         if (dto.getEmail() != null && !dto.getEmail().trim().equalsIgnoreCase(user.getEmail())) {
             String newEmail = dto.getEmail().trim().toLowerCase();
@@ -118,6 +129,20 @@ public class UserService {
         }
 
         User updated = userRepository.save(user);
+
+        try {
+            if (sessionRepository != null) {
+                var sc = (configurationService != null) ? configurationService.getSessionManagementConfig() : null;
+                boolean shouldRevokeScope = (sc == null || sc.revokeOnRoleOrScopeChange()) && (roleChanged || scopeChanged);
+                boolean shouldRevokeDeactivated = (sc == null || sc.revokeOnAccountDeactivation()) && accountDeactivated;
+                if (shouldRevokeScope || shouldRevokeDeactivated) {
+                    sessionRepository.revokeAllUserSessions(id);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to revoke sessions after updating user {}", id, ex);
+        }
+
         return toUserResponseDTO(updated);
     }
 
@@ -126,6 +151,13 @@ public class UserService {
         User user = userRepository.findByIdWithProvincesAndDistricts(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
         validateTargetUserManagementAccess(user);
+        try {
+            if (sessionRepository != null) {
+                sessionRepository.revokeAllUserSessions(id);
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to revoke sessions on deleting user {}", id, ex);
+        }
         userRepository.deleteById(id);
     }
 
@@ -136,6 +168,20 @@ public class UserService {
         validateTargetUserManagementAccess(user);
         user.setEnabled(enabled);
         User updated = userRepository.save(user);
+
+        if (!enabled) {
+            try {
+                if (sessionRepository != null) {
+                    var sc = (configurationService != null) ? configurationService.getSessionManagementConfig() : null;
+                    if (sc == null || sc.revokeOnAccountDeactivation()) {
+                        sessionRepository.revokeAllUserSessions(id);
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Failed to revoke sessions on deactivating user {}", id, ex);
+            }
+        }
+
         return toUserResponseDTO(updated);
     }
 
@@ -147,6 +193,18 @@ public class UserService {
         user.setPasswordHash(passwordEncoder.encode("Password@123456"));
         user.setPasswordChangeRequired(true);
         userRepository.save(user);
+
+        try {
+            if (sessionRepository != null) {
+                var sc = (configurationService != null) ? configurationService.getSessionManagementConfig() : null;
+                if (sc == null || sc.revokeOnPasswordReset()) {
+                    sessionRepository.revokeAllUserSessions(id);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to revoke sessions on resetting password for user {}", id, ex);
+        }
+
         return Map.of("message", "Password reset successfully for " + user.getFullName() + ". Temporary password is: Password@123456");
     }
 

@@ -12,22 +12,26 @@ import com.nerdc.elephantfence.backend.configuration.service.ConfigurationServic
 import com.nerdc.elephantfence.backend.users.entity.Role;
 import com.nerdc.elephantfence.backend.users.entity.User;
 import com.nerdc.elephantfence.backend.users.repository.UserRepository;
+import com.nerdc.elephantfence.backend.auth.dto.ReauthenticateResponseDTO;
 import com.nerdc.elephantfence.backend.users.service.UserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final AuthenticationManager authenticationManager;
@@ -86,7 +90,48 @@ public class AuthService {
         user.setLastLoginAt(OffsetDateTime.now());
         userRepository.save(user);
 
-        OffsetDateTime expiresAt = OffsetDateTime.now().plusHours(24);
+        ConfigurationService.SessionManagementConfig sessionConfig = null;
+        try {
+            if (configurationService != null) {
+                sessionConfig = configurationService.getSessionManagementConfig();
+            }
+        } catch (Exception ignored) {}
+
+        if (sessionConfig != null && sessionRepository != null) {
+            int maxConcurrent = sessionConfig.maximumConcurrentSessions();
+            if (maxConcurrent > 0) {
+                var activeSessions = sessionRepository.findActiveByUserId(userPrincipal.getId(), OffsetDateTime.now());
+                if (activeSessions != null && activeSessions.size() >= maxConcurrent) {
+                    if ("REJECT_NEW".equalsIgnoreCase(sessionConfig.newLoginBehaviour())) {
+                        throw new org.springframework.web.server.ResponseStatusException(
+                                org.springframework.http.HttpStatus.CONFLICT,
+                                "Maximum concurrent active sessions reached (" + maxConcurrent + "). Please sign out from another device."
+                        );
+                    } else {
+                        // REVOKE_OLDEST (default)
+                        activeSessions.sort(Comparator.comparing(
+                                s -> s.getSignedInAt() != null ? s.getSignedInAt() : OffsetDateTime.MIN
+                        ));
+                        int toRemove = activeSessions.size() - maxConcurrent + 1;
+                        for (int i = 0; i < toRemove && i < activeSessions.size(); i++) {
+                            sessionRepository.delete(activeSessions.get(i));
+                        }
+                    }
+                }
+            }
+        }
+
+        OffsetDateTime expiresAt;
+        if (Boolean.TRUE.equals(request.getRememberMe())) {
+            int rememberDays = (sessionConfig != null && sessionConfig.rememberMeDays() > 0)
+                    ? sessionConfig.rememberMeDays() : 7;
+            expiresAt = OffsetDateTime.now().plusDays(rememberDays);
+        } else {
+            int maxHours = (sessionConfig != null && sessionConfig.maximumSessionHours() > 0)
+                    ? sessionConfig.maximumSessionHours() : 12;
+            expiresAt = OffsetDateTime.now().plusHours(maxHours);
+        }
+
         UserSession session = UserSession.builder()
                 .id(sessionId)
                 .user(user)
@@ -123,7 +168,16 @@ public class AuthService {
                 sessionRepository.delete(session);
                 throw new IllegalArgumentException("Session has been revoked or expired");
             }
-            session.setExpiresAt(OffsetDateTime.now().plusHours(24));
+            int maxHours = 12;
+            try {
+                if (configurationService != null) {
+                    var sc = configurationService.getSessionManagementConfig();
+                    if (sc != null && sc.maximumSessionHours() > 0) {
+                        maxHours = sc.maximumSessionHours();
+                    }
+                }
+            } catch (Exception ignored) {}
+            session.setExpiresAt(OffsetDateTime.now().plusHours(maxHours));
             sessionRepository.save(session);
         }
 
@@ -154,6 +208,11 @@ public class AuthService {
 
     @Transactional
     public void changePassword(UUID userId, ChangePasswordRequestDTO request) {
+        changePassword(userId, request, null);
+    }
+
+    @Transactional
+    public void changePassword(UUID userId, ChangePasswordRequestDTO request, String currentSessionId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
@@ -161,10 +220,72 @@ public class AuthService {
             throw new IllegalArgumentException("Current password does not match");
         }
 
+        int minLength = 12;
+        try {
+            if (configurationService != null && configurationService.getSecurityPolicyConfig() != null) {
+                minLength = configurationService.getSecurityPolicyConfig().minimumPasswordLength();
+            }
+        } catch (Exception ignored) {}
+
+        if (request.getNewPassword() == null || request.getNewPassword().length() < minLength) {
+            throw new IllegalArgumentException("New password must be at least " + minLength + " characters long");
+        }
+
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         user.setPasswordChangeRequired(false);
         user.setPasswordChangedAt(OffsetDateTime.now());
         userRepository.save(user);
+
+        try {
+            if (configurationService != null && sessionRepository != null) {
+                var sessionConfig = configurationService.getSessionManagementConfig();
+                if (sessionConfig != null && sessionConfig.revokeOnPasswordChange()) {
+                    String activeSessionId = currentSessionId;
+                    if (activeSessionId == null) {
+                        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                        if (auth != null && auth.getPrincipal() instanceof UserPrincipal p) {
+                            activeSessionId = p.getSessionId();
+                        }
+                    }
+                    if (activeSessionId != null) {
+                        sessionRepository.revokeOtherUserSessions(userId, activeSessionId);
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to revoke other sessions after password change for user {}", userId, ex);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public ReauthenticateResponseDTO reauthenticate(UUID userId, String password) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED, "Invalid password"
+            );
+        }
+
+        int validityMinutes = 5;
+        try {
+            if (configurationService != null) {
+                var sessionConfig = configurationService.getSessionManagementConfig();
+                if (sessionConfig != null && sessionConfig.reauthenticationValidityMinutes() > 0) {
+                    validityMinutes = sessionConfig.reauthenticationValidityMinutes();
+                }
+            }
+        } catch (Exception ignored) {}
+
+        OffsetDateTime expiresAt = OffsetDateTime.now().plusMinutes(validityMinutes);
+
+        return ReauthenticateResponseDTO.builder()
+                .authenticated(true)
+                .validityMinutes(validityMinutes)
+                .expiresAt(expiresAt)
+                .message("Re-authentication successful")
+                .build();
     }
 
     private String parseDevice(String userAgent) {

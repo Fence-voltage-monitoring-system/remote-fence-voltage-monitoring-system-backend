@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface AlertEventRepository extends JpaRepository<AlertEvent, Long> {
     List<AlertEvent> findByAlertIdOrderByOccurredAtAsc(Long alertId);
+    List<AlertEvent> findByAlertIdOrderByOccurredAtDesc(Long alertId);
 }

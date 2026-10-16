@@ -29,6 +29,10 @@ public interface UserSessionRepository extends JpaRepository<UserSession, String
     int revokeAllUserSessions(@Param("userId") UUID userId);
 
     @Modifying
+    @Query("DELETE FROM UserSession s WHERE s.user.id = :userId AND s.id != :excludedSessionId")
+    int revokeOtherUserSessions(@Param("userId") UUID userId, @Param("excludedSessionId") String excludedSessionId);
+
+    @Modifying
     @Query("DELETE FROM UserSession s WHERE s.expiresAt <= :now")
     void deleteExpiredSessions(@Param("now") OffsetDateTime now);
 }

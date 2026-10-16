@@ -2,12 +2,12 @@ package com.nerdc.elephantfence.backend.common.security;
 
 import com.nerdc.elephantfence.backend.configuration.entity.UserSession;
 import com.nerdc.elephantfence.backend.configuration.repository.UserSessionRepository;
+import com.nerdc.elephantfence.backend.configuration.service.ConfigurationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,12 +19,28 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final CustomUserDetailsService customUserDetailsService;
     private final UserSessionRepository sessionRepository;
+    private final ConfigurationService configurationService;
+
+    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider,
+                                   CustomUserDetailsService customUserDetailsService,
+                                   UserSessionRepository sessionRepository) {
+        this(tokenProvider, customUserDetailsService, sessionRepository, null);
+    }
+
+    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider,
+                                   CustomUserDetailsService customUserDetailsService,
+                                   UserSessionRepository sessionRepository,
+                                   ConfigurationService configurationService) {
+        this.tokenProvider = tokenProvider;
+        this.customUserDetailsService = customUserDetailsService;
+        this.sessionRepository = sessionRepository;
+        this.configurationService = configurationService;
+    }
 
     @Override
     protected void doFilterInternal(
@@ -42,17 +58,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 boolean validSession = true;
                 if (sessionId != null) {
                     var sessionOpt = sessionRepository.findById(sessionId);
-                    if (sessionOpt.isEmpty() || sessionOpt.get().getExpiresAt().isBefore(OffsetDateTime.now())) {
+                    OffsetDateTime now = OffsetDateTime.now();
+                    if (sessionOpt.isEmpty()) {
                         validSession = false;
-                        if (sessionOpt.isPresent()) {
-                            sessionRepository.delete(sessionOpt.get());
-                        }
                     } else {
-                        // Periodic heartbeat: update last activity at if it's been > 1 min since last update
                         UserSession session = sessionOpt.get();
-                        if (session.getLastActivityAt().plusMinutes(1).isBefore(OffsetDateTime.now())) {
-                            session.setLastActivityAt(OffsetDateTime.now());
-                            sessionRepository.save(session);
+                        int idleTimeoutMinutes = 30;
+                        try {
+                            if (configurationService != null) {
+                                var sessionConfig = configurationService.getSessionManagementConfig();
+                                if (sessionConfig != null && sessionConfig.idleTimeoutMinutes() > 0) {
+                                    idleTimeoutMinutes = sessionConfig.idleTimeoutMinutes();
+                                }
+                            }
+                        } catch (Exception ignored) {}
+
+                        boolean expired = session.getExpiresAt().isBefore(now);
+                        boolean idleTimedOut = session.getLastActivityAt() != null
+                                && session.getLastActivityAt().plusMinutes(idleTimeoutMinutes).isBefore(now);
+
+                        if (expired || idleTimedOut) {
+                            validSession = false;
+                            sessionRepository.delete(session);
+                        } else {
+                            // Periodic heartbeat: update last activity at if it's been > 1 min since last update
+                            if (session.getLastActivityAt() == null || session.getLastActivityAt().plusMinutes(1).isBefore(now)) {
+                                session.setLastActivityAt(now);
+                                sessionRepository.save(session);
+                            }
                         }
                     }
                 }

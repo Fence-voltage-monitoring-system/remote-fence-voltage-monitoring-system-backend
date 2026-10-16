@@ -33,6 +33,9 @@ public class TelemetryService {
     private final FenceRepository fenceRepository;
     private final ConfigurationService configurationService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.nerdc.elephantfence.backend.alerts.service.AlertService alertService;
+
     @Transactional
     public TelemetryResponseDTO ingestTelemetry(TelemetryIngestRequestDTO dto) {
         // 1. Look up the device by its hardware serial number
@@ -121,6 +124,10 @@ public class TelemetryService {
                             fence.setHealth(FenceHealth.HEALTHY);
                         }
                         fenceRepository.save(fence);
+
+                        if (alertService != null) {
+                            alertService.processTelemetry(section, fence, v, battery, dto.getSolarCharging());
+                        }
                     });
                 }
             });

@@ -30,4 +30,8 @@ public class TelemetryIngestRequestDTO {
     @Min(value = 0, message = "Signal strength cannot be less than 0%")
     @Max(value = 100, message = "Signal strength cannot exceed 100%")
     private Integer signal; // optional signal strength (0-100)
+
+    @Min(value = 0, message = "Solar charging level cannot be less than 0%")
+    @Max(value = 100, message = "Solar charging level cannot exceed 100%")
+    private Integer solarCharging; // optional solar charging level or percentage (0-100)
 }

@@ -340,4 +340,19 @@ public class SystemHealthService {
 
         return UUID.randomUUID().toString();
     }
+
+    public void recordJobRun(String jobId, String result, OffsetDateTime lastRunAt, OffsetDateTime nextRunAt, Long durationMs) {
+        BackgroundJobHealthDTO job = jobsMap.get(jobId);
+        if (job != null) {
+            jobsMap.put(jobId, BackgroundJobHealthDTO.builder()
+                    .id(job.getId())
+                    .name(job.getName())
+                    .result(result)
+                    .lastRunAt(lastRunAt)
+                    .nextRunAt(nextRunAt)
+                    .durationMs(durationMs)
+                    .retryAllowed(job.isRetryAllowed())
+                    .build());
+        }
+    }
 }

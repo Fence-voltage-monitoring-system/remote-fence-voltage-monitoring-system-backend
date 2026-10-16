@@ -1,6 +1,8 @@
 package com.nerdc.elephantfence.backend.notifications.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nerdc.elephantfence.backend.configuration.repository.SystemConfigurationRepository;
 import com.nerdc.elephantfence.backend.fences.repository.FenceRepository;
 import com.nerdc.elephantfence.backend.notifications.dto.NotificationPageDTO;
 import com.nerdc.elephantfence.backend.notifications.dto.NotificationResponseDTO;
@@ -35,6 +37,7 @@ public class NotificationService {
     private final NotificationWebSocketHandler webSocketHandler;
     private final EmailService emailService;
     private final SmsService smsService;
+    private final SystemConfigurationRepository configurationRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional(readOnly = true)
@@ -100,9 +103,44 @@ public class NotificationService {
         return result;
     }
 
+    public boolean isCategoryEnabled(String category) {
+        if (category == null || configurationRepository == null) return true;
+        return configurationRepository.findBySection("notifications")
+                .map(c -> {
+                    JsonNode data = c.getConfigData();
+                    if (data == null) return true;
+                    return switch (category.toUpperCase()) {
+                        case "CRITICAL" -> data.path("criticalAlertsEnabled").asBoolean(true);
+                        case "WARNING" -> data.path("warningAlertsEnabled").asBoolean(true);
+                        case "MAINTENANCE" -> data.path("maintenanceUpdatesEnabled").asBoolean(true);
+                        case "SYSTEM" -> data.path("systemUpdatesEnabled").asBoolean(true);
+                        default -> true;
+                    };
+                })
+                .orElse(true);
+    }
+
+    public boolean isChannelEnabled(String channelKey) {
+        if (configurationRepository == null) return true;
+        return configurationRepository.findBySection("notifications")
+                .map(c -> {
+                    JsonNode data = c.getConfigData();
+                    return data == null || data.path(channelKey).asBoolean(true);
+                })
+                .orElse(true);
+    }
+
     @Transactional
     public void sendNotification(UserNotification notification) {
-        userNotificationRepository.save(notification);
+        if (!isCategoryEnabled(notification.getCategory())) {
+            log.info("Notification {} suppressed by category filter: {}", notification.getCode(), notification.getCategory());
+            return;
+        }
+
+        if (isChannelEnabled("inAppEnabled")) {
+            userNotificationRepository.save(notification);
+        }
+
         if(org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization(){
                 @Override public void afterCommit(){broadcastNotification(notification);}
@@ -111,11 +149,13 @@ public class NotificationService {
     }
 
     private void broadcastNotification(UserNotification notif) {
-        try {
-            String json = objectMapper.writeValueAsString(toResponse(notif));
-            webSocketHandler.broadcast(notif.getUserId(), json);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            log.error("Failed to broadcast notification websocket update", e);
+        if (isChannelEnabled("websocketEnabled")) {
+            try {
+                String json = objectMapper.writeValueAsString(toResponse(notif));
+                webSocketHandler.broadcast(notif.getUserId(), json);
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                log.error("Failed to broadcast notification websocket update", e);
+            }
         }
 
         try {
@@ -127,11 +167,13 @@ public class NotificationService {
 
                     String severity = "CRITICAL".equalsIgnoreCase(notif.getCategory()) ? "CRITICAL" : "WARNING";
 
-                    if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                    boolean emailAllowed = notif.getChannels() == null || notif.getChannels().contains("IN_APP") || notif.getChannels().contains("EMAIL");
+                    if (emailAllowed && user.getEmail() != null && !user.getEmail().isBlank()) {
                         emailService.sendAlertEmail(user.getEmail(), user.getFullName(), notif.getTitle(), notif.getMessage(), fenceName, severity);
                     }
 
-                    if (user.getContactNumber() != null && !user.getContactNumber().isBlank()) {
+                    boolean smsAllowed = isChannelEnabled("smsEnabled") && (notif.getChannels() == null || notif.getChannels().contains("SMS"));
+                    if (smsAllowed && user.getContactNumber() != null && !user.getContactNumber().isBlank()) {
                         smsService.sendAlertSms(user.getContactNumber(), notif.getTitle(), fenceName, severity);
                     }
 

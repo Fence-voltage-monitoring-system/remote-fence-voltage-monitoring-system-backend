@@ -4,6 +4,8 @@ import com.nerdc.elephantfence.backend.auth.dto.ChangePasswordRequestDTO;
 import com.nerdc.elephantfence.backend.auth.dto.LoginRequestDTO;
 import com.nerdc.elephantfence.backend.auth.dto.LoginResponseDTO;
 import com.nerdc.elephantfence.backend.auth.dto.RefreshTokenRequestDTO;
+import com.nerdc.elephantfence.backend.auth.dto.ReauthenticateRequestDTO;
+import com.nerdc.elephantfence.backend.auth.dto.ReauthenticateResponseDTO;
 import com.nerdc.elephantfence.backend.auth.service.AuthService;
 import com.nerdc.elephantfence.backend.common.security.UserPrincipal;
 import com.nerdc.elephantfence.backend.users.dto.UserResponseDTO;
@@ -110,11 +112,23 @@ public class AuthController {
             @Valid @RequestBody ChangePasswordRequestDTO request
     ) {
         try {
-            authService.changePassword(userPrincipal.getId(), request);
+            authService.changePassword(userPrincipal.getId(), request, userPrincipal != null ? userPrincipal.getSessionId() : null);
             return ResponseEntity.ok(java.util.Map.of("message", "Password changed successfully"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
         }
+    }
+
+    @PostMapping("/reauthenticate")
+    public ResponseEntity<ReauthenticateResponseDTO> reauthenticate(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @Valid @RequestBody ReauthenticateRequestDTO request
+    ) {
+        java.util.UUID userId = (userPrincipal != null) ? userPrincipal.getId() : null;
+        if (userId == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(authService.reauthenticate(userId, request.getPassword()));
     }
 
     @PostMapping("/sessions/revoke-others")

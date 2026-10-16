@@ -22,6 +22,7 @@ import java.util.UUID;
 public class ConfigurationController {
 
     private final ConfigurationService configurationService;
+    private final com.nerdc.elephantfence.backend.configuration.service.DataRetentionService retentionService;
 
     @GetMapping("/general")
     public ResponseEntity<ConfigurationSaveResponseDTO> getGeneralSection() {
@@ -31,6 +32,28 @@ public class ConfigurationController {
     @GetMapping("/voltage")
     public ResponseEntity<ConfigurationSaveResponseDTO> getVoltageSection() {
         return ResponseEntity.ok(configurationService.getSection("voltage"));
+    }
+
+    @GetMapping("/alerts")
+    public ResponseEntity<ConfigurationSaveResponseDTO> getAlertsSection() {
+        return ResponseEntity.ok(configurationService.getSection("alerts"));
+    }
+
+    @GetMapping("/retention/status")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<com.nerdc.elephantfence.backend.configuration.dto.RetentionStatusDTO> getRetentionStatus() {
+        return ResponseEntity.ok(retentionService.getStatus());
+    }
+
+    @PostMapping("/retention/cleanup")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<com.nerdc.elephantfence.backend.configuration.dto.RetentionCleanupResultDTO> triggerRetentionCleanup(
+            @RequestBody(required = false) com.nerdc.elephantfence.backend.configuration.dto.RetentionCleanupRequestDTO request
+    ) {
+        String reason = (request != null && request.getReason() != null && !request.getReason().isBlank())
+                ? request.getReason()
+                : "Manual administrative cleanup";
+        return ResponseEntity.ok(retentionService.executeCleanup(true, reason));
     }
 
     @GetMapping("/{section}")

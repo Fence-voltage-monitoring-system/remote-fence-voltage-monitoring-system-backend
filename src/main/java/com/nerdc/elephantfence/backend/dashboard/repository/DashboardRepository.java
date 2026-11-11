@@ -79,11 +79,30 @@ public class DashboardRepository {
     }
 
     @SuppressWarnings("unchecked")
+    public List<Object[]> findDeviceContextByIdentifier(String identifier) {
+        return em.createNativeQuery(
+                "SELECT d.id, d.voltage, d.battery, d.status, " +
+                "f.id AS fence_id, f.name AS fence_name, " +
+                "s.id AS section_id " +
+                "FROM devices d " +
+                "JOIN sections s ON s.id = d.section_id " +
+                "JOIN fences f ON f.id = s.fence_id " +
+                "WHERE CAST(d.id AS TEXT) = :identifier " +
+                "   OR LOWER(d.serial) = LOWER(:identifier) " +
+                "   OR LOWER(d.name) = LOWER(:identifier) " +
+                "   OR LOWER(s.code) = LOWER(:identifier) " +
+                "LIMIT 1")
+                .setParameter("identifier", identifier.trim())
+                .getResultList();
+    }
+
+    @SuppressWarnings("unchecked")
     public List<Object[]> findVoltageHistory(Long deviceId, int limit) {
         return em.createNativeQuery(
                 "SELECT recorded_at, voltage_kv FROM telemetry_readings " +
                 "WHERE device_id = :deviceId " +
-                "ORDER BY recorded_at DESC " +
+                "  AND recorded_at >= CURRENT_TIMESTAMP - INTERVAL '24 HOURS' " +
+                "ORDER BY recorded_at ASC " +
                 "LIMIT :limit")
                 .setParameter("deviceId", deviceId)
                 .setParameter("limit", limit)

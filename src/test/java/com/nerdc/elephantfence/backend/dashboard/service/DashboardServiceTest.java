@@ -115,7 +115,7 @@ class DashboardServiceTest {
         Object[] voltageRow = new Object[]{ OffsetDateTime.now(), new BigDecimal("6.5") };
 
         when(dashboardRepository.findDeviceContext(1L)).thenReturn(rowList(mockDeviceRow));
-        when(dashboardRepository.findVoltageHistory(1L, 50)).thenReturn(rowList(voltageRow));
+        when(dashboardRepository.findVoltageHistory(1L, 500)).thenReturn(rowList(voltageRow));
         when(dashboardRepository.countAlertsByDeviceAndSeverity(1L, "critical")).thenReturn(2L);
         when(dashboardRepository.countAlertsByDeviceAndSeverity(1L, "warning")).thenReturn(1L);
         when(dashboardRepository.countOfflineAlertsByDevice(1L)).thenReturn(0L);

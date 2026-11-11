@@ -46,17 +46,18 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public DeviceAnalyticsResponseDTO getDeviceAnalytics(String deviceId) {
+        List<Object[]> contextRows = List.of();
         Long id = null;
-        try {
-            id = Long.parseLong(deviceId);
-        } catch (NumberFormatException e) {
-            List<Object[]> firstActive = dashboardRepository.findFirstActiveDeviceContext();
-            if (!firstActive.isEmpty()) {
-                id = ((Number) firstActive.get(0)[0]).longValue();
+
+        if (deviceId != null && !deviceId.isBlank()) {
+            try {
+                id = Long.parseLong(deviceId);
+                contextRows = dashboardRepository.findDeviceContext(id);
+            } catch (NumberFormatException e) {
+                contextRows = dashboardRepository.findDeviceContextByIdentifier(deviceId);
             }
         }
 
-        List<Object[]> contextRows = id != null ? dashboardRepository.findDeviceContext(id) : List.of();
         if (contextRows.isEmpty()) {
             contextRows = dashboardRepository.findFirstActiveDeviceContext();
         }
@@ -82,10 +83,10 @@ public class DashboardService {
         Long actualId = ((Number) contextRows.get(0)[0]).longValue();
         DeviceMonitoringContextDTO deviceContext = mapToDeviceContext(contextRows.get(0));
 
-        // Fetch voltage history (last 50 readings for chart)
-        List<VoltageReadingDTO> voltageHistory = dashboardRepository.findVoltageHistory(actualId, 50).stream()
+        // Fetch voltage history (within past 24 hours, up to 500 readings in chronological order)
+        List<VoltageReadingDTO> voltageHistory = dashboardRepository.findVoltageHistory(actualId, 500).stream()
                 .map(row -> VoltageReadingDTO.builder()
-                        .recordedAt((OffsetDateTime) row[0])
+                        .recordedAt(toOffsetDateTime(row[0]))
                         .voltage(row[1] != null ? ((Number) row[1]).doubleValue() : 0.0)
                         .build())
                 .toList();
@@ -103,6 +104,22 @@ public class DashboardService {
                 .voltageHistory(voltageHistory)
                 .alertCounts(alertCounts)
                 .build();
+    }
+
+    private OffsetDateTime toOffsetDateTime(Object value) {
+        if (value == null) {
+            return OffsetDateTime.now();
+        }
+        if (value instanceof OffsetDateTime odt) {
+            return odt;
+        }
+        if (value instanceof java.time.Instant instant) {
+            return instant.atOffset(java.time.ZoneOffset.UTC);
+        }
+        if (value instanceof java.sql.Timestamp ts) {
+            return ts.toInstant().atOffset(java.time.ZoneOffset.UTC);
+        }
+        return OffsetDateTime.now();
     }
 
     // ─── Helper Mapper ─────────────────────────────────────────────────────────

@@ -43,14 +43,23 @@ public class TelemetryService {
                 .orElseThrow(() -> new IllegalArgumentException("Device not found with serial: " + dto.getDeviceSerial()));
 
         // 2. Create and save the telemetry record
+        OffsetDateTime readingTime = dto.getRecordedAt() != null ? dto.getRecordedAt() : OffsetDateTime.now();
         TelemetryReading reading = TelemetryReading.builder()
                 .deviceId(device.getId())
                 .voltageKv(dto.getVoltage())
                 .battery(dto.getBattery())
                 .signal(dto.getSignal())
+                .recordedAt(readingTime)
                 .build();
 
         TelemetryReading savedReading = telemetryRepository.save(reading);
+
+        // Only update active device status metrics and trigger alert processing if this reading is recent (live)
+        boolean isLiveReading = dto.getRecordedAt() == null
+                || dto.getRecordedAt().isAfter(OffsetDateTime.now().minusMinutes(5));
+        if (!isLiveReading) {
+            return convertToResponseDTO(savedReading, dto.getDeviceSerial());
+        }
 
         // 3. Resolve active dynamic voltage and battery thresholds
         ConfigurationService.VoltageThresholdConfig voltageConfig = configurationService != null

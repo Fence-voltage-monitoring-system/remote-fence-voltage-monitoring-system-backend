@@ -30,7 +30,13 @@ public class TelemetryReading {
 
     private Integer signal;
 
-    @CreationTimestamp
     @Column(name = "recorded_at", nullable = false, updatable = false)
     private OffsetDateTime recordedAt;
+
+    @PrePersist
+    public void prePersist() {
+        if (this.recordedAt == null) {
+            this.recordedAt = OffsetDateTime.now();
+        }
+    }
 }

@@ -209,4 +209,36 @@ class TelemetryServiceTest {
         verify(sectionRepository).save(section);
         verify(fenceRepository).save(fence);
     }
+
+    @Test
+    void ingestTelemetry_shouldNotTriggerLiveAlertsOrUpdateDeviceState_forHistoricalReadings() {
+        OffsetDateTime pastTime = OffsetDateTime.now().minusHours(12);
+        TelemetryIngestRequestDTO dto = TelemetryIngestRequestDTO.builder()
+                .deviceSerial("SN-12345")
+                .voltage(new BigDecimal("1.2")) // critical if live
+                .battery(85)
+                .recordedAt(pastTime)
+                .build();
+
+        TelemetryReading historicalReading = TelemetryReading.builder()
+                .id(103L)
+                .deviceId(1L)
+                .voltageKv(new BigDecimal("1.2"))
+                .recordedAt(pastTime)
+                .build();
+
+        when(deviceRepository.findBySerialIgnoreCase("SN-12345")).thenReturn(Optional.of(device));
+        when(telemetryRepository.save(any(TelemetryReading.class))).thenReturn(historicalReading);
+
+        TelemetryResponseDTO response = telemetryService.ingestTelemetry(dto);
+
+        assertThat(response).isNotNull();
+        // Telemetry must be saved
+        verify(telemetryRepository, times(1)).save(any(TelemetryReading.class));
+        // But device status, section, fence, alerts should NOT be updated for old historical data
+        verify(deviceRepository, never()).save(any());
+        verify(sectionRepository, never()).save(any());
+        verify(fenceRepository, never()).save(any());
+        verify(alertService, never()).processTelemetry(any(), any(), anyDouble(), any(), any());
+    }
 }

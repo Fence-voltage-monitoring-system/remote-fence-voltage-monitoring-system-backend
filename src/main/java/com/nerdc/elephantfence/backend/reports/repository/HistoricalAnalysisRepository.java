@@ -48,7 +48,7 @@ public class HistoricalAnalysisRepository {
     }
 
     @SuppressWarnings("unchecked")
-    public List<Object[]> findAlertTimestampsSince(OffsetDateTime since) {
+    public List<Object> findAlertTimestampsSince(OffsetDateTime since) {
         return em.createNativeQuery(
                 "SELECT created_at FROM alerts WHERE created_at >= :since")
                 .setParameter("since", since)

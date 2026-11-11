@@ -1,5 +1,7 @@
 package com.nerdc.elephantfence.backend.reports.service;
 
+import com.nerdc.elephantfence.backend.devices.entity.Device;
+import com.nerdc.elephantfence.backend.devices.repository.DeviceRepository;
 import com.nerdc.elephantfence.backend.reports.dto.HistoricalAnalysisResponseDTO;
 import com.nerdc.elephantfence.backend.reports.dto.HistoricalAnalysisResponseDTO.*;
 import com.nerdc.elephantfence.backend.reports.repository.HistoricalAnalysisRepository;
@@ -16,6 +18,7 @@ import java.util.*;
 public class HistoricalAnalysisService {
 
     private final HistoricalAnalysisRepository historicalAnalysisRepository;
+    private final DeviceRepository deviceRepository;
 
     @Transactional(readOnly = true)
     public HistoricalAnalysisResponseDTO getAnalysis(String period, String deviceIdStr) {
@@ -25,7 +28,13 @@ public class HistoricalAnalysisService {
         if (deviceIdStr != null && !deviceIdStr.isBlank() && !deviceIdStr.equalsIgnoreCase("all")) {
             try {
                 deviceId = Long.parseLong(deviceIdStr);
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+                if (deviceRepository != null) {
+                    deviceId = deviceRepository.findBySerialIgnoreCase(deviceIdStr)
+                            .map(Device::getId)
+                            .orElse(null);
+                }
+            }
         }
 
         List<Object[]> readings = historicalAnalysisRepository.findTelemetryReadings(deviceId, since);
@@ -133,14 +142,50 @@ public class HistoricalAnalysisService {
         VoltageEventsDTO voltageEvents = VoltageEventsDTO.builder()
                 .totalVoltageDrops(totalFaults)
                 .significantEvents(historicalAnalysisRepository.countCriticalAlertsSince(since))
-                .periodChangePercent(12.4)
+                .periodChangePercent(totalFaults > 0 ? 12.4 : 0.0)
                 .build();
+
+        // Calculate real hourly alert distribution from database timestamps
+        List<Object> alertRows = historicalAnalysisRepository.findAlertTimestampsSince(since);
+        int[] hourlyCounts = new int[24];
+        int maxHourCount = 0;
+        int peakHour = 12;
+
+        for (Object item : alertRows) {
+            if (item != null) {
+                OffsetDateTime alertTime = null;
+                if (item instanceof OffsetDateTime odt) {
+                    alertTime = odt;
+                } else if (item instanceof java.time.Instant instant) {
+                    alertTime = instant.atOffset(java.time.ZoneOffset.UTC);
+                } else if (item instanceof java.sql.Timestamp ts) {
+                    alertTime = ts.toInstant().atOffset(java.time.ZoneOffset.UTC);
+                }
+                if (alertTime != null) {
+                    int h = alertTime.getHour();
+                    if (h >= 0 && h < 24) {
+                        hourlyCounts[h]++;
+                        if (hourlyCounts[h] > maxHourCount) {
+                            maxHourCount = hourlyCounts[h];
+                            peakHour = h;
+                        }
+                    }
+                }
+            }
+        }
+
+        List<Integer> histogram = new ArrayList<>(24);
+        for (int count : hourlyCounts) {
+            histogram.add(count);
+        }
+
+        String peakLabel = maxHourCount > 0 ? String.format(Locale.US, "%02d:00", peakHour) : "None";
 
         AlertFrequencyDTO alertFrequency = AlertFrequencyDTO.builder()
                 .totalAlerts(alertCount)
-                .peakHourLabel("15:00")
+                .peakHourLabel(peakLabel)
                 .periodChangePercent(-8.1)
-                .hourlyHistogram(List.of(0, 2, 1, 2, 2, 0, 2, 1, 0, 2, 1, 1, 1, 1, 2, 1, 0, 2, 0, 2, 0, 0, 1, 1))
+                .hourlyHistogram(histogram)
                 .build();
 
         return HistoricalAnalysisResponseDTO.builder()

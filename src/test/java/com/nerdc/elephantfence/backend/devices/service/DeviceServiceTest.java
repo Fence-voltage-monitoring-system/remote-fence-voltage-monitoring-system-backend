@@ -31,6 +31,12 @@ class DeviceServiceTest {
     @Mock
     private GatewayRepository gatewayRepository;
 
+    @Mock
+    private com.nerdc.elephantfence.backend.users.repository.UserRepository userRepository;
+
+    @Mock
+    private com.nerdc.elephantfence.backend.fences.repository.FenceRepository fenceRepository;
+
     @InjectMocks
     private DeviceService deviceService;
 

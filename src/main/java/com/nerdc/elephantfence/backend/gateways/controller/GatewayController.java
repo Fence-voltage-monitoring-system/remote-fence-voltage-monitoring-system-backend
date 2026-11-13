@@ -34,7 +34,7 @@ public class GatewayController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
     public ResponseEntity<GatewayResponseDTO> createGateway(
             @Valid @RequestBody GatewayCreateRequestDTO dto,
             @AuthenticationPrincipal UserPrincipal principal
@@ -43,7 +43,7 @@ public class GatewayController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
     public ResponseEntity<GatewayResponseDTO> updateGateway(
             @PathVariable String id,
             @Valid @RequestBody GatewayUpdateRequestDTO dto,
@@ -53,7 +53,7 @@ public class GatewayController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
     public ResponseEntity<GatewayResponseDTO> toggleEnabled(
             @PathVariable String id,
             @RequestBody Map<String, Boolean> payload,
@@ -67,7 +67,7 @@ public class GatewayController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN')")
     public ResponseEntity<Void> deleteGateway(
             @PathVariable String id,
             @AuthenticationPrincipal UserPrincipal principal

@@ -13,6 +13,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/alerts")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
 public class AlertController {
 
     private final AlertService alertService;
@@ -26,7 +27,7 @@ public class AlertController {
     @GetMapping("/options")
     public java.util.Map<String,Object> options() { return alertService.options(); }
 
-    @GetMapping("/{key}")
+    @GetMapping("/{key:^(?!ws$).+}")
     public AlertResponseDTO getAlert(@PathVariable String key) { return alertService.getAlert(key); }
 
     @GetMapping

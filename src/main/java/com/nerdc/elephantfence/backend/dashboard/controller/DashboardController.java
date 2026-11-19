@@ -5,11 +5,13 @@ import com.nerdc.elephantfence.backend.dashboard.dto.DeviceAnalyticsResponseDTO;
 import com.nerdc.elephantfence.backend.dashboard.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
 public class DashboardController {
 
     private final DashboardService dashboardService;

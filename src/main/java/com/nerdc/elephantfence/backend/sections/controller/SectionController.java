@@ -33,11 +33,13 @@ public class SectionController {
     private final SectionService sectionService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
     public ResponseEntity<List<SectionResponseDTO>> getByFenceId(@RequestParam Long fenceId) {
         return ResponseEntity.ok(sectionService.getByFenceId(fenceId));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
     public ResponseEntity<SectionResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(sectionService.getById(id));
     }
@@ -81,6 +83,7 @@ public class SectionController {
     }
 
     @GetMapping("/{id}/telemetry")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
     public ResponseEntity<List<SectionTelemetryResponseDTO>> getTelemetry(
             @PathVariable Long id,
             @RequestParam(defaultValue = "50") int limit

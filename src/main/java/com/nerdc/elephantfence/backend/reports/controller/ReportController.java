@@ -4,9 +4,11 @@ import com.nerdc.elephantfence.backend.reports.service.ReportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 @RestController @RequestMapping("/api/reports") @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
 public class ReportController {
     private final ReportService service;
     @GetMapping("/filters") public Map<String,Object> filters(@RequestParam(required=false) String province,@RequestParam(required=false) String district,@RequestParam(required=false) String fence) {

@@ -21,6 +21,10 @@ public interface GatewayRepository extends JpaRepository<Gateway, Long> {
 
     Optional<Gateway> findByNameIgnoreCase(String name);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"fences"})
+    @Query("SELECT DISTINCT g FROM Gateway g")
+    List<Gateway> findAllWithFences();
+
     @Query(value = "SELECT COUNT(*) FROM devices WHERE gateway_id = :gatewayId", nativeQuery = true)
     int countDevicesByGatewayId(@Param("gatewayId") Long gatewayId);
 

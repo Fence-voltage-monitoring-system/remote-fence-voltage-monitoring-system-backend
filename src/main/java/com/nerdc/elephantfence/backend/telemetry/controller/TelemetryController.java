@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +25,7 @@ public class TelemetryController {
     }
 
     @GetMapping("/device/{deviceId}/history")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
     public ResponseEntity<List<TelemetryResponseDTO>> getDeviceHistory(
             @PathVariable Long deviceId,
             @RequestParam(defaultValue = "50") int limit

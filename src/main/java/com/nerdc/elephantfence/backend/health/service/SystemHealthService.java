@@ -172,7 +172,7 @@ public class SystemHealthService {
                 .build());
 
         // 2. Gateway stats calculation
-        List<Gateway> gateways = gatewayRepository.findAll();
+        List<Gateway> gateways = gatewayRepository.findAllWithFences();
         int totalGateways = gateways.size();
         int onlineGateways = 0;
         int offlineGateways = 0;

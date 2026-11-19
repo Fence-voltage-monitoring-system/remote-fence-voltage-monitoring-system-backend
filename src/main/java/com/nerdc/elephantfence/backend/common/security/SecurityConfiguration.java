@@ -87,7 +87,7 @@ public class SecurityConfiguration {
                         .contentTypeOptions(Customizer.withDefaults())
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
-                                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:8080 http://localhost:4200;"
+                                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss: http://localhost:8080 http://localhost:4200;"
                         ))
                 )
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(

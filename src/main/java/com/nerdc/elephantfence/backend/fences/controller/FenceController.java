@@ -25,6 +25,7 @@ public class FenceController {
     private final FenceService fenceService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
     public ResponseEntity<List<FenceResponseDTO>> getAllFences(
             @RequestParam(required = false) Long provinceId,
             @RequestParam(required = false) Long districtId
@@ -33,6 +34,7 @@ public class FenceController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN', 'MAINTENANCE')")
     public ResponseEntity<FenceResponseDTO> getFenceById(@PathVariable Long id) {
         return ResponseEntity.ok(fenceService.getFenceById(id));
     }
@@ -56,6 +58,7 @@ public class FenceController {
     }
 
     @GetMapping("/maintenance-candidates")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_ADMIN', 'FIELD_ADMIN')")
     public ResponseEntity<List<UserResponseDTO>> getMaintenanceCandidates(
             @RequestParam(required = false) Long fenceId,
             @RequestParam(required = false) Long provinceId,

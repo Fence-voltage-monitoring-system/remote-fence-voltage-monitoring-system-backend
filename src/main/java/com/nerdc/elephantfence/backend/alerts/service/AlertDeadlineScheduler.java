@@ -27,7 +27,7 @@ public class AlertDeadlineScheduler {
             log.error("Could not check unacknowledged alert timeouts", e);
         }
         try {
-            service.checkGatewaysOffline(gatewayRepository.findAll(), gatewayService);
+            service.checkGatewaysOffline(gatewayRepository.findAllWithFences(), gatewayService);
         } catch (Exception e) {
             log.error("Could not check gateway offline statuses", e);
         }
